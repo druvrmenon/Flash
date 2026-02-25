@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FlashGen — Quiz Mode</title>
+<meta name="theme-color" content="#060714">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700;9..144,900&family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="quiz.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ── TOP BAR ── -->
+  <header class="topbar">
+    <div class="topbar-brand">FlashGen</div>
+    <div class="topbar-center hidden" id="progress-bar-wrap">
+      <div class="top-progress">
+        <div class="top-progress-fill" id="top-progress-fill" style="width:0%"></div>
+      </div>
+      <div class="top-progress-label">
+        <span id="progress-text">Question 1 of 10</span>
+        <div class="live-score">
+          <div class="score-dot"></div>
+          <span id="live-score">0 correct</span>
+        </div>
+      </div>
+    </div>
+    <button class="exit-btn" id="exit-btn">✕ Exit</button>
+  </header>
+
+  <!-- ── START SCREEN ── -->
+  <section id="start-screen">
+    <div class="start-card" id="start-card">
+      <span class="start-icon">🎯</span>
+      <div class="start-title">Quiz Mode</div>
+      <p class="start-sub" id="start-desc">Loading deck info…</p>
+      <div class="start-info">
+        <div class="info-chip">⏱ 30s per question</div>
+        <div class="info-chip">🔀 Randomised</div>
+        <div class="info-chip">📊 Results sync to dashboard</div>
+      </div>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.6rem">How many questions?</p>
+      <div class="q-count-row" id="q-count-row">
+        <button class="qc-chip" data-n="5">5</button>
+        <button class="qc-chip active" data-n="10">10</button>
+        <button class="qc-chip" data-n="15">15</button>
+        <button class="qc-chip" data-n="20">20</button>
+      </div>
+      <button class="start-btn" id="start-btn">Start Quiz →</button>
+    </div>
+
+    <div class="no-cards hidden" id="no-cards">
+      <div class="start-card">
+        <span class="start-icon">📭</span>
+        <h2 style="font-family:'Fraunces',serif;font-size:1.4rem;margin-bottom:.75rem">No cards available</h2>
+        <p style="color:var(--ink-2);font-size:.9rem;line-height:1.7;margin-bottom:1.5rem">
+          You need at least 4 flashcards to run a quiz. Go back and open a deck first.
+        </p>
+        <button class="start-btn" onclick="window.location.href='index.html'">← Back to FlashGen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ACTIVE QUIZ ── -->
+  <section class="hidden" id="quiz-section">
+    <div class="quiz-main">
+      <div class="timer-wrap">
+        <div class="timer-row">
+          <div class="q-label" id="q-num-label">Q1</div>
+          <div class="timer-track"><div class="timer-fill" id="timer-fill" style="width:100%"></div></div>
+          <div class="timer-num" id="timer-num">30</div>
+        </div>
+      </div>
+      <div class="q-card" id="q-card">
+        <div class="q-meta" id="q-meta"></div>
+        <div class="q-text" id="q-text"></div>
+      </div>
+      <div class="opts-grid" id="opts-grid"></div>
+      <div class="feedback-strip" id="feedback-strip">
+        <div class="feedback-icon" id="feedback-icon"></div>
+        <div class="feedback-text" id="feedback-text"></div>
+      </div>
+      <div class="next-wrap hidden" id="next-wrap">
+        <button class="next-btn" id="next-btn">
+          <span id="next-btn-label">Next Question</span>
+          <span class="arrow">→</span>
+        </button>
+      </div>
+      <div class="kb-hint">
+        <kbd>A</kbd><kbd>B</kbd><kbd>C</kbd><kbd>D</kbd> select ·
+        <kbd>Enter</kbd> / <kbd>Space</kbd> next
+      </div>
+    </div>
+  </section>
+
+  <!-- ── RESULTS ── -->
+  <section class="hidden" id="results-screen">
+    <div class="results-hero">
+      <span class="results-trophy" id="results-trophy">🏆</span>
+      <div class="results-score" id="results-score">—</div>
+      <div class="results-pct" id="results-pct"></div>
+      <div class="results-grade" id="results-grade"></div>
+    </div>
+    <div class="results-stats" id="results-stats"></div>
+    <div id="results-perfect"></div>
+    <div class="breakdown-card" id="breakdown-card"></div>
+    <div id="results-weak"></div>
+    <div class="results-actions">
+      <button class="action-btn primary" id="retry-btn">🔄 Retry Quiz</button>
+      <button class="action-btn secondary" id="back-cards-btn">← Back to Cards</button>
+      <button class="action-btn secondary" id="view-stats-btn">📊 View Dashboard</button>
+    </div>
+  </section>
+
+</div>
+<script src="quiz.js"></script>
+</body>
+</html>

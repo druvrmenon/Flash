@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="aurora">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FlashGen — AI Exam Flashcard Generator</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FlashGen">
+<meta name="theme-color" content="#07091a">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- OFFLINE BANNER -->
+<div class="offline-banner" id="offline-banner">⚠ You're offline — saved decks still work, but generation requires internet</div>
+
+<!-- ══ API KEY SCREEN ══ -->
+<div id="screen-apikey" class="screen active">
+  <div class="api-card">
+    <div class="logo">FlashGen</div>
+    <h2>Welcome back, scholar</h2>
+    <p>Enter your free Gemini 2.5 API key to unlock AI-powered flashcards from any PDF or YouTube lecture.</p>
+    <div><span class="lbl">Gemini API Key</span><input class="inp" type="password" id="api-key-input" placeholder="AIza…" autocomplete="off" spellcheck="false"/></div>
+    <button class="btn-full" id="api-save-btn">Save Key &amp; Start Learning →</button>
+    <div class="api-note">🔑 Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank"><strong>aistudio.google.com/apikey</strong></a> → Create API key → Create API key in new project.<br><br>⚠ <strong>Use AI Studio only</strong> — not Google Cloud Console. Cloud Console keys have no free tier.<br><br>🔒 Stored in your browser only. Sent directly to Google.</div>
+  </div>
+</div>
+
+<!-- ══ UPLOAD SCREEN ══ -->
+<div id="screen-upload" class="screen">
+  <nav class="nav">
+    <div class="nav-brand">FlashGen <span style="font-size:.55rem;font-family:'JetBrains Mono',monospace;opacity:.5;font-weight:400;-webkit-text-fill-color:var(--ink-2);background:none">gemma-3-27b</span></div>
+    <div class="nav-streak" id="nav-streak">🔥<span id="nav-snum">0</span></div>
+    <div class="nav-actions">
+      <div class="swatches" id="sw-row">
+        <div class="sw active" data-t="aurora" style="background:linear-gradient(135deg,#7c6ffa,#22d3ee)" title="Aurora"></div>
+        <div class="sw" data-t="parchment" style="background:#b45309" title="Parchment"></div>
+        <div class="sw" data-t="sakura" style="background:#db2777" title="Sakura"></div>
+        <div class="sw" data-t="ocean" style="background:#0369a1" title="Ocean"></div>
+        <div class="sw" data-t="forest" style="background:#166534" title="Forest"></div>
+        <div class="sw" data-t="ember" style="background:linear-gradient(135deg,#c2410c,#f59e0b)" title="Ember"></div>
+        <div class="sw" data-t="neon" style="background:linear-gradient(135deg,#a855f7,#ec4899)" title="Neon"></div>
+        <div class="sw" data-t="slate" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)" title="Slate"></div>
+      </div>
+      <div class="offline-dot" id="offline-dot"></div>
+      <button class="nb" id="btn-dash">📊 Dashboard</button>
+      <button class="nb" id="btn-lib">📚 Library</button>
+      <button class="nb" id="btn-key">🔑 Key</button>
+    </div>
+  </nav>
+
+  <div class="upload-grid">
+    <div class="hero fin">
+      <h1>Study smarter.<br><span>Ace your exams.</span></h1>
+      <p>FlashGen turns any PDF or YouTube lecture into exam-ready flashcards — with spaced repetition, quiz mode, voice, and full progress tracking.</p>
+      <div class="feat-chips">
+        <span class="fc">🧠 SM-2 Spaced Repetition</span>
+        <span class="fc">🎯 Mock Quiz Mode</span>
+        <span class="fc">🔊 Voice Mode</span>
+        <span class="fc">📊 Progress Dashboard</span>
+        <span class="fc">🎯 Weak Spot Detector</span>
+        <span class="fc">📖 NCERT Chapters</span>
+        <span class="fc">▶️ YouTube → Cards</span>
+        <span class="fc">🔀 Deck Merge</span>
+        <span class="fc">💡 AI Explain</span>
+        <span class="fc">🎨 8 Themes</span>
+      </div>
+    </div>
+
+    <div class="panel fin" style="animation-delay:.1s">
+      <div class="tabs">
+        <button class="tab active" data-tab="pdf">📄 PDF Upload</button>
+        <button class="tab" data-tab="yt">▶️ YouTube</button>
+      </div>
+
+      <div class="tabp active" id="tab-pdf">
+        <div class="dz" id="dz">
+          <input type="file" id="pdf-input" accept=".pdf"/>
+          <div class="dz-icon">📄</div>
+          <div class="dz-title">Tap to choose a PDF</div>
+          <div class="dz-sub">NCERT chapters, notes, past papers · max 20 MB</div>
+          <div class="fpill" id="fpill"><span>✅</span><span id="fname">—</span></div>
+        </div>
+      </div>
+
+      <div class="tabp" id="tab-yt">
+        <span class="lbl">YouTube Video URL</span>
+        <input class="yt-inp" type="url" id="yt-inp" placeholder="https://www.youtube.com/watch?v=…"/>
+        <div class="yt-note">⚡ Gemini 2.5 reads the video directly — no transcript needed. Works with any educational YouTube video.</div>
+      </div>
+
+      <div><span class="lbl">Exam Type</span>
+        <select class="sel" id="exam-sel">
+          <option value="CBSE-10">CBSE Class 10</option>
+          <option value="CBSE-12" selected>CBSE Class 12</option>
+          <option value="JEE-Main">JEE Main</option>
+          <option value="JEE-Advanced">JEE Advanced</option>
+          <option value="NEET">NEET</option>
+          <option value="UPSC">UPSC</option>
+          <option value="General">General / Other</option>
+        </select>
+      </div>
+
+      <div><span class="lbl">Number of Flashcards</span>
+        <div class="cnt-row" id="cnt-row">
+          <button class="cc" data-n="5">5</button>
+          <button class="cc active" data-n="10">10</button>
+          <button class="cc" data-n="15">15</button>
+          <button class="cc" data-n="20">20</button>
+          <button class="cc" data-n="30">30</button>
+        </div>
+        <div class="cust-row"><label>Custom:</label><input type="number" id="cust-n" min="3" max="50" placeholder="3–50"/></div>
+      </div>
+
+      <div><span class="lbl">Exam Date (sets priority &amp; countdown)</span>
+        <div class="date-row"><input type="date" id="exam-date"/><button id="date-save">Set Date</button></div>
+        <div id="cd-msg"></div>
+      </div>
+
+      <button class="btn-full" id="gen-btn" disabled>✨ Generate Flashcards</button>
+    </div>
+  </div>
+
+  <!-- Library -->
+  <div class="lib-sec" id="lib-sec">
+    <div class="lib-hdr">
+      <div class="lib-ttl">📚 My Library</div>
+      <div class="merge-controls">
+        <button class="nb" id="merge-toggle-btn">🔀 Merge Decks</button>
+        <button class="nb primary" id="merge-do-btn" style="display:none">Merge Selected →</button>
+        <button class="nb" id="merge-cancel-btn" style="display:none">Cancel</button>
+      </div>
+    </div>
+    <div id="lib-container"><div class="lib-empty">No saved decks yet. Generate your first deck above!</div></div>
+  </div>
+</div>
+
+<!-- ══ LOADING SCREEN ══ -->
+<div id="screen-loading" class="screen">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.6rem;padding:2rem">
+    <div class="spinner"></div>
+    <div class="ld-h">Generating flashcards…</div>
+    <div class="ld-s">Powered by Gemma 3 27B · 30 requests/min free ✓</div>
+    <div class="ld-steps">
+      <div class="ldstep" id="ls0"><div class="ldstep-dot"></div>Reading source content…</div>
+      <div class="ldstep" id="ls1"><div class="ldstep-dot"></div>Extracting formulas, diagrams &amp; concepts…</div>
+      <div class="ldstep" id="ls2"><div class="ldstep-dot"></div>Building exam-level Q&amp;A pairs…</div>
+      <div class="ldstep" id="ls3"><div class="ldstep-dot"></div>Mapping to NCERT chapters &amp; priorities…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CARD VIEWER ══ -->
+<div id="screen-cards" class="screen">
+  <nav class="nav">
+    <div class="nav-brand">FlashGen</div>
+    <div class="nav-actions">
+      <button class="nb sb-toggle" id="sb-toggle">🏷 Topics</button>
+      <button class="nb" id="cv-back">← Library</button>
+      <button class="nb" id="cv-quiz">🎯 Quiz Mode</button>
+      <button class="nb" id="cv-dash">📊 Stats</button>
+      <button class="nb primary" id="cv-new">+ New</button>
+    </div>
+  </nav>
+  <div class="exam-banner" id="exam-banner"></div>
+  <div class="cv-layout">
+    <div class="sidebar" id="sidebar">
+      <div class="sbhd">Document</div>
+      <div class="sb-info" id="sb-name">—</div>
+      <div class="sb-meta-t" id="sb-meta">—</div>
+      <div id="sb-chapters"></div>
+      <div id="sb-topics"></div>
+    </div>
+    <div class="card-area">
+      <div class="doc-banner fin">
+        <div class="di">📑</div>
+        <div style="flex:1"><div class="dn" id="doc-name">—</div><div class="dm" id="doc-meta">—</div></div>
+        <div class="etag" id="etag" style="display:none"></div>
+      </div>
+      <div class="prog-wrap fin" style="animation-delay:.05s">
+        <div class="prog-info"><span id="card-ctr">1 / 10</span><span id="pct-seen">0% seen</span></div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+      <div class="card-scene" id="card-scene">
+        <div class="card-inner">
+          <div class="card-face card-front">
+            <div class="priodot" id="prio-dot"></div>
+            <div class="tbadge" id="tbadge-f"></div>
+            <div class="cchip" id="chip-f">Topic</div>
+            <div class="card-q" id="card-q">—</div>
+            <div class="flip-hint">tap to reveal ↩</div>
+          </div>
+          <div class="card-face card-back">
+            <div class="tbadge" id="tbadge-b"></div>
+            <div class="cchip" id="chip-b">Answer</div>
+            <div class="card-a" id="card-a">—</div>
+            <div class="flip-hint">tap to flip back ↩</div>
+          </div>
+        </div>
+      </div>
+      <!-- SM-2 Rating (shows after flip) -->
+      <div class="sr-row fin" id="sr-row" style="display:none;animation-delay:.08s">
+        <button class="sr-btn sr-again" id="sr-again">↩ Again<br><small>forgot</small></button>
+        <button class="sr-btn sr-hard" id="sr-hard">😓 Hard<br><small>+1 day</small></button>
+        <button class="sr-btn sr-good" id="sr-good">👍 Good<br><small>tomorrow</small></button>
+        <button class="sr-btn sr-easy" id="sr-easy">⚡ Easy<br><small>next week</small></button>
+      </div>
+      <div class="sr-hint" id="sr-hint" style="display:none">Rate to schedule with Spaced Repetition · <kbd>1</kbd> Again · <kbd>2</kbd> Hard · <kbd>3</kbd> Good · <kbd>4</kbd> Easy</div>
+      <div class="card-ctrls fin" style="animation-delay:.12s">
+        <button class="ctrl ctrl-nav" id="prev-btn" disabled>← Prev</button>
+        <button class="ctrl ctrl-flip" id="flip-btn">Flip Card</button>
+        <button class="ctrl ctrl-nav" id="next-btn">Next →</button>
+        <button class="ctrl ctrl-act" id="explain-btn">💡 Explain</button>
+        <button class="ctrl ctrl-act" id="voice-btn">🔊 Read</button>
+        <button class="ctrl ctrl-act" id="shuffle-btn">🔀</button>
+      </div>
+      <div class="swipe-indicator">👆 Swipe card left/right to navigate</div>
+      <div class="kb-row">
+        <span><kbd>←</kbd> prev</span><span><kbd>Space</kbd> flip</span><span><kbd>→</kbd> next</span>
+        <span><kbd>1-4</kbd> rate</span><span><kbd>E</kbd> explain</span><span><kbd>V</kbd> voice</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXPLAIN MODAL ══ -->
+<div class="modal-overlay" id="explain-overlay">
+  <div class="explain-modal">
+    <div class="explain-hdr">
+      <div class="explain-title">💡 Deep Explanation</div>
+      <button class="explain-close" id="explain-close">✕ Close</button>
+    </div>
+    <div id="explain-body"></div>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="screen-dashboard" class="screen">
+  <nav class="nav">
+    <div class="nav-brand">FlashGen</div>
+    <div class="nav-actions"><button class="nb" id="dash-back">← Back</button></div>
+  </nav>
+  <div class="dash-wrap">
+    <div class="dash-ttl">Your <span>Progress</span></div>
+    <div class="dash-grid">
+      <div class="dc">
+        <h3>📈 Overview</h3>
+        <div class="stat-row">
+          <div class="sbox"><div class="snum" id="s-decks">0</div><div class="slbl">Decks</div></div>
+          <div class="sbox"><div class="snum" id="s-rated">0</div><div class="slbl">Rated</div></div>
+          <div class="sbox"><div class="snum" id="s-pct">—</div><div class="slbl">Known %</div></div>
+          <div class="sbox"><div class="snum" id="s-due">0</div><div class="slbl">Due Today</div></div>
+        </div>
+      </div>
+      <div class="dc">
+        <h3>🔥 Study Streak</h3>
+        <div class="streak-disp">
+          <div class="sf">🔥</div>
+          <div><div class="sn" id="d-streak">0</div><div class="ss" id="d-sub">days in a row</div><div class="ss" style="margin-top:.2rem">Best: <strong id="d-best">0</strong> days</div></div>
+        </div>
+        <div class="scal" id="d-cal"></div>
+      </div>
+      <div class="dc" style="grid-column:1/-1">
+        <h3>🏆 Badges</h3>
+        <div class="badges-g" id="badges-g"></div>
+      </div>
+      <div class="dc" style="grid-column:1/-1">
+        <h3>🎯 Weak Spots <small style="font-size:.7rem;color:var(--ink-2);font-weight:300;font-family:'JetBrains Mono',monospace"> — topics needing attention</small></h3>
+        <div class="weak-list" id="weak-list"><div style="color:var(--ink-2);font-size:.85rem">Rate cards to identify weak spots!</div></div>
+      </div>
+      <div class="dc" style="grid-column:1/-1">
+        <h3>📊 Topic Mastery</h3>
+        <div id="no-mastery" style="color:var(--ink-2);font-size:.85rem;text-align:center;padding:2rem">Flip cards and rate them to see mastery here!</div>
+        <div class="chart-wrap" id="chart-wrap" style="display:none"><canvas id="mastery-chart"></canvas></div>
+        <table class="mtable" id="mtable" style="display:none">
+          <thead><tr><th>Topic</th><th>Chapter</th><th>✓ Known</th><th>✗ Review</th><th>Mastery</th><th>SR Due</th></tr></thead>
+          <tbody id="mtbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
