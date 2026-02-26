@@ -1,9 +1,10 @@
 // ═══════════════════════════════════════════════════════
-//  FlashGen Quiz Engine v3
-//  · Inherits theme from flashcard app
-//  · 3-tier difficulty (Easy / Medium / Hard)
-//  · Type-aware distractor engine (plausible same-type distractors)
-//  · True/False + Reverse question formats
+//  FlashGen Quiz Engine v4 — AI-Powered Questions
+//  · Sends a fresh Gemini API request each quiz for
+//    brand-new questions, options, and distractors
+//  · Falls back gracefully to local distractor engine
+//    if the API call fails or key is missing
+//  · Inherits all original scoring, timer, and UI logic
 // ═══════════════════════════════════════════════════════
 
 const $ = {
@@ -12,20 +13,15 @@ const $ = {
 };
 
 // ═══ THEME ═══════════════════════════════════════════
-const THEMES = ['aurora','neon','parchment','sakura','ocean','forest','ember','slate'];
+const ALL_THEMES = ['aurora','neon','midnight','cyberpunk','dracula','obsidian','deepspace','parchment','sakura','ocean','forest','ember','slate'];
 
 function applyTheme(t){
-  if(!THEMES.includes(t)) t = 'aurora';
+  if(!ALL_THEMES.includes(t)) t = 'aurora';
   document.documentElement.setAttribute('data-theme', t);
   $.set('fg:theme', t);
   document.querySelectorAll('.tsw').forEach(b => b.classList.toggle('active', b.dataset.t === t));
 }
-
-function initTheme(){
-  const saved = $.get('fg:theme','aurora');
-  applyTheme(saved);
-}
-
+function initTheme(){ applyTheme($.get('fg:theme','aurora')); }
 function openThemePanel(){
   document.getElementById('theme-panel').classList.add('open');
   document.getElementById('theme-overlay').classList.add('show');
@@ -74,6 +70,7 @@ let allCards=[], deckId=null, mode=null;
 let quizCards=[], qIdx=0, score=0, pts=0, streak=0, bestStreak=0;
 let answers=[], qTimer=null, timeLeft=0, answered=false;
 let selectedCount=10, hintUsed=false, curQ=null;
+let aiQuestions=[];
 
 // ═══ LOAD CARDS ═══════════════════════════════════════
 function loadCards(){
@@ -89,7 +86,6 @@ function loadCards(){
 window.addEventListener('DOMContentLoaded',()=>{
   initTheme();
 
-  // Theme panel
   document.querySelectorAll('.tsw').forEach(b=>b.addEventListener('click',()=>applyTheme(b.dataset.t)));
   document.getElementById('tp-close').addEventListener('click',closeThemePanel);
   document.getElementById('theme-overlay').addEventListener('click',closeThemePanel);
@@ -102,13 +98,11 @@ window.addEventListener('DOMContentLoaded',()=>{
     return;
   }
 
-  // Deck info
   let deckName='Your deck';
   if(deckId){ const d=$.get('fg:d:'+deckId,null); if(d?.meta?.name) deckName=d.meta.name; }
   document.getElementById('deck-title').textContent = deckName.slice(0,50);
   document.getElementById('deck-count').textContent = allCards.length+' cards';
 
-  // Difficulty selection
   document.querySelectorAll('.diff-card').forEach(el=>{
     el.addEventListener('click',()=>{
       document.querySelectorAll('.diff-card').forEach(d=>d.classList.remove('active'));
@@ -122,7 +116,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     });
   });
 
-  // Count buttons
   document.querySelectorAll('.qc-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       document.querySelectorAll('.qc-btn').forEach(b=>b.classList.remove('active'));
@@ -131,8 +124,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     });
   });
 
-  // Buttons
-  document.getElementById('start-btn').addEventListener('click', startQuiz);
+  document.getElementById('start-btn').addEventListener('click', startQuizWithAI);
   document.getElementById('exit-btn').addEventListener('click',()=>{ clearInterval(qTimer); window.location.href='index.html?return=cards'; });
   document.getElementById('retry-btn').addEventListener('click', resetToStart);
   document.getElementById('back-btn').addEventListener('click',()=>window.location.href='index.html?return=quiz-done');
@@ -167,40 +159,190 @@ function updateCountBtns(){
 }
 
 function resetToStart(){
+  qIdx=0;score=0;pts=0;streak=0;bestStreak=0;answers=[];answered=false;aiQuestions=[];
+  document.getElementById('quiz-section').classList.add('hidden');
   document.getElementById('results-screen').classList.add('hidden');
+  document.getElementById('gen-screen').classList.add('hidden');
   document.getElementById('start-screen').classList.remove('hidden');
   document.getElementById('hud').classList.add('hidden');
-  // restore theme-based mode colors
   document.documentElement.style.setProperty('--mode', 'var(--ac)');
   document.documentElement.style.setProperty('--mode-bg', 'var(--ac-s)');
   document.documentElement.style.setProperty('--mode-br', 'var(--br)');
 }
 
-// ═══ START QUIZ ═══════════════════════════════════════
-function startQuiz(){
+// ═══════════════════════════════════════════════════════
+//  AI QUESTION GENERATION
+// ═══════════════════════════════════════════════════════
+
+async function startQuizWithAI(){
   if(!mode) return;
   const cfg = MODES[mode];
   const pool = cfg.pool(allCards);
-  quizCards = shuffle([...pool]).slice(0, Math.min(selectedCount, pool.length));
-  qIdx=0; score=0; pts=0; streak=0; bestStreak=0; answers=[]; answered=false;
+  const selected = shuffle([...pool]).slice(0, Math.min(selectedCount, pool.length));
 
+  // Show generating screen
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('gen-screen').classList.remove('hidden');
+  animGenSteps();
+
+  const key = localStorage.getItem('fg_key') || '';
+  let useAI = !!key && navigator.onLine;
+
+  if(useAI){
+    try {
+      const generated = await generateQuestionsFromAI(selected, cfg);
+      if(generated && generated.length >= Math.floor(selected.length * 0.7)){
+        aiQuestions = mergeAIWithCards(generated, selected);
+      } else {
+        useAI = false;
+      }
+    } catch(e) {
+      console.warn('AI question generation failed:', e.message);
+      useAI = false;
+    }
+  }
+
+  if(!useAI){
+    document.getElementById('gen-fallback').classList.remove('hidden');
+    document.getElementById('gen-sub').textContent = 'Using your saved flashcards as questions…';
+    await sleep(1200);
+    aiQuestions = [];
+  }
+
+  quizCards = selected;
+  qIdx=0; score=0; pts=0; streak=0; bestStreak=0; answers=[]; answered=false;
   applyModeColors();
 
-  // HUD badge
   const badge = document.getElementById('mode-badge');
   badge.textContent = cfg.emoji+' '+cfg.label;
   badge.style.color = cfg.color;
   badge.style.background = cfg.colorBg;
   badge.style.borderColor = cfg.color;
 
+  document.getElementById('gen-screen').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
-  document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('quiz-section').classList.remove('hidden');
   renderQ();
 }
 
+function animGenSteps(){
+  for(let i=0;i<4;i++) document.getElementById('gstep-'+i).className='gen-step';
+  for(let i=0;i<4;i++){
+    setTimeout(()=>{
+      if(i>0) document.getElementById('gstep-'+(i-1)).className='gen-step done';
+      document.getElementById('gstep-'+i).className='gen-step active';
+    }, i*900);
+  }
+}
+
+async function generateQuestionsFromAI(cards, cfg){
+  const key = localStorage.getItem('fg_key');
+  const optCount = cfg.optCount;
+  const deckMeta = deckId ? ($.get('fg:d:'+deckId,null)?.meta || {}) : {};
+  const exam = deckMeta.exam || 'General';
+
+  const cardSummaries = cards.map((c,i)=>({
+    id: i,
+    q: strip(c.q).slice(0,200),
+    a: strip(c.a).slice(0,200),
+    topic: c.topic||'General',
+    type: c.type||'recall',
+    chapter: c.chapter||'General'
+  }));
+
+  const diffInstructions = {
+    easy: `Easy difficulty: Write clear, simple questions. Distractors should be obviously from a different domain — wrong but plausible. 3 options per question.`,
+    medium: `Medium difficulty: Questions should test understanding. Distractors must come from the same chapter/domain — plausible enough to catch students who half-know the answer. 4 options per question.`,
+    hard: `Hard difficulty: Questions must be nuanced and require deep understanding. Distractors must be from the SAME topic — extremely close to correct, designed to catch students who almost know it. 4 options per question. Include some reverse questions (show the answer, student picks the question).`
+  };
+
+  const formatRules = mode === 'easy'
+    ? `Mix of MCQ (~60%) and True/False (~40%). For True/False: "fmt":"truefalse", "shownAns" is an answer string (real or a wrong one from another card), "correctIdx":0 if shownAns is the real answer else 1, "opts":["True","False"].`
+    : mode === 'hard'
+    ? `Mix of MCQ (~65%) and Reverse (~35%). For Reverse: "fmt":"reverse", "prompt" is the ANSWER text, "opts" are ${optCount} possible QUESTION strings (one correct, rest wrong from same topic).`
+    : `All MCQ. "fmt":"mcq".`;
+
+  const prompt = `You are an expert ${exam} exam question setter. Generate exactly ${cards.length} quiz questions from these flashcard Q&A pairs.
+
+${diffInstructions[mode]}
+
+FORMAT RULES:
+${formatRules}
+
+For every question:
+- "cardId": index of the source card (0-based, matches the list below)
+- "fmt": "mcq", "truefalse", or "reverse"
+- "prompt": the question text (or answer text for reverse)
+- "shownAns": only for truefalse — the answer string being evaluated
+- "opts": array of ${optCount} short answer strings (or question strings for reverse)
+- "correctIdx": 0-based index of the correct option
+- "topic": topic name
+- "chapter": chapter name
+
+RULES:
+- Every cardId must appear at least once. Spread questions across all cards.
+- Distractors must be factually wrong but PLAUSIBLE.
+- Do NOT repeat the exact card answer as the correct option — paraphrase it slightly.
+- Keep each option under 120 characters.
+- Return ONLY a valid JSON array. No markdown fences. No preamble. No explanation.
+
+Schema: [{"cardId":0,"fmt":"mcq","prompt":"...","shownAns":"","opts":["A","B","C"],"correctIdx":0,"topic":"...","chapter":"..."}]
+
+Source flashcards:
+${JSON.stringify(cardSummaries)}`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      contents:[{role:'user', parts:[{text:prompt}]}],
+      generationConfig:{maxOutputTokens:6000, temperature:0.55}
+    })
+  });
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.error?.message || 'Gemini error '+resp.status);
+
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const raw = ((parts.find(p=>!p.thought&&p.text)||parts[0])||{}).text || '';
+  if(!raw) throw new Error('Empty response');
+
+  function extractJSON(s){
+    try{ return JSON.parse(s); }catch{}
+    const stripped = s.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+    try{ return JSON.parse(stripped); }catch{}
+    const m = stripped.match(/(\[[\s\S]*\])/);
+    if(m){ try{ return JSON.parse(m[1]); }catch{} }
+    throw new Error('Cannot parse JSON from AI response');
+  }
+
+  const questions = extractJSON(raw);
+  if(!Array.isArray(questions)) throw new Error('Not an array');
+  return questions.filter(q => q && Array.isArray(q.opts) && q.opts.length >= 2 && typeof q.correctIdx === 'number');
+}
+
+function mergeAIWithCards(aiQs, cards){
+  return aiQs.map(q => {
+    const cardId = (typeof q.cardId === 'number' && q.cardId >= 0 && q.cardId < cards.length) ? q.cardId : 0;
+    const card = cards[cardId] || cards[0];
+    return {
+      fmt: q.fmt || 'mcq',
+      prompt: (q.prompt || strip(card.q)).slice(0,300),
+      shownAns: (q.shownAns || '').slice(0,220),
+      opts: (q.opts || []).map(o => String(o).slice(0,160)),
+      correctIdx: Math.max(0, Math.min(q.correctIdx, (q.opts||[]).length - 1)),
+      topic: q.topic || card.topic || 'General',
+      chapter: q.chapter || card.chapter || 'General',
+      label: q.fmt === 'reverse' ? 'Which question does this answer belong to?' : '',
+      card: card,
+      tag: typeTag(card),
+      aiGenerated: true
+    };
+  });
+}
+
 // ═══════════════════════════════════════════════════════
-//  QUESTION BUILDER
+//  LOCAL FALLBACK QUESTION BUILDER
 // ═══════════════════════════════════════════════════════
 
 function buildQuestion(card){
@@ -210,14 +352,12 @@ function buildQuestion(card){
   if(fmts.length===1){ fmt=fmts[0]; }
   else if(mode==='hard'){ fmt = Math.random()<0.6 ? 'mcq' : 'reverse'; }
   else { fmt = Math.random()<0.55 ? 'mcq' : 'truefalse'; }
-  // Reverse doesn't suit formulas/diagrams
   if(fmt==='reverse' && (card.type==='formula'||card.type==='diagram')) fmt='mcq';
   if(fmt==='truefalse') return buildTF(card);
   if(fmt==='reverse')   return buildReverse(card);
   return buildMCQ(card, cfg.optCount, cfg.distStrategy);
 }
 
-// ── MCQ with type-aware distractors ──────────────────
 function buildMCQ(card, optCount, strategy){
   const correct = strip(card.a);
   const distractors = getDistractors(card, correct, optCount-1, strategy);
@@ -226,7 +366,6 @@ function buildMCQ(card, optCount, strategy){
   return { fmt:'mcq', prompt:strip(card.q), opts, correctIdx, card, tag:typeTag(card) };
 }
 
-// ── True / False ──────────────────────────────────────
 function buildTF(card){
   const realAns = strip(card.a);
   const useReal = Math.random() > 0.42;
@@ -234,7 +373,6 @@ function buildTF(card){
   if(useReal){
     shown = realAns; isTrue = true;
   } else {
-    // pick a distractor of the same TYPE so it's plausible
     const sameType = allCards.filter(c => c !== card && c.type === card.type && strip(c.a) !== realAns);
     const pool = sameType.length >= 1 ? sameType : allCards.filter(c => c !== card && strip(c.a) !== realAns);
     const pick = pool[Math.floor(Math.random()*pool.length)];
@@ -244,11 +382,9 @@ function buildTF(card){
   return { fmt:'truefalse', prompt:strip(card.q), shownAns:shown.slice(0,220), opts:['True','False'], correctIdx:isTrue?0:1, card, tag:typeTag(card) };
 }
 
-// ── Reverse: show answer → pick the right question ───
 function buildReverse(card){
   const answerText = strip(card.a);
   const correctQ   = strip(card.q);
-  // Pick wrong questions from the same topic/chapter if possible
   const sameTopic = allCards.filter(c=>c!==card&&c.topic===card.topic&&c.q);
   const rest      = allCards.filter(c=>c!==card&&c.topic!==card.topic&&c.q);
   const pool      = [...sameTopic,...rest];
@@ -258,50 +394,30 @@ function buildReverse(card){
   return { fmt:'reverse', prompt:answerText.slice(0,280), label:'Which question does this answer belong to?', opts, correctIdx, card, tag:{text:'🔄 Reverse',cls:'tag-reverse'} };
 }
 
-// ═══ TYPE-AWARE DISTRACTOR ENGINE ════════════════════
-//
-//  Strategy priority for each difficulty:
-//  - EASY: use cards with DIFFERENT topics (obviously wrong but same type format)
-//  - MEDIUM: use cards from the SAME CHAPTER (similar domain, plausible)
-//  - HARD: use cards from the SAME TOPIC (nearly identical answers, very tricky)
-//
-//  Within each, we first try to get cards of the same TYPE so the answer
-//  format makes sense (e.g. formula distractors for formula questions,
-//  short definitions for recall questions, etc.)
-//
 function getDistractors(card, correct, count, strategy){
-  // Build ranked pools: same-type first within each proximity tier
   function sameType(list){ return list.filter(c=>c.type===card.type); }
   function anyType(list) { return list; }
-
   let tiers;
   if(strategy==='topic'){
-    // Hard: same topic → same chapter → rest (all same-type first within each tier)
     const t1 = allCards.filter(c=>c!==card&&c.topic===card.topic);
     const t2 = allCards.filter(c=>c!==card&&c.chapter===card.chapter&&c.topic!==card.topic);
     const t3 = allCards.filter(c=>c!==card&&c.chapter!==card.chapter);
     tiers = [...sameType(t1),...anyType(t1),...sameType(t2),...anyType(t2),...sameType(t3),...anyType(t3)];
   } else if(strategy==='chapter'){
-    // Medium: same chapter → rest
     const t1 = allCards.filter(c=>c!==card&&c.chapter===card.chapter);
     const t2 = allCards.filter(c=>c!==card&&c.chapter!==card.chapter);
     tiers = [...sameType(t1),...anyType(t1),...sameType(t2),...anyType(t2)];
   } else {
-    // Easy: different topics first (clearly different domain — easy to dismiss)
     const t1 = allCards.filter(c=>c!==card&&c.topic!==card.topic);
     const t2 = allCards.filter(c=>c!==card&&c.topic===card.topic);
-    // For easy mode, same type makes the options recognisable (they all look like answers)
     tiers = [...sameType(t1),...sameType(t2),...anyType(t1),...anyType(t2)];
   }
-
-  // Deduplicate and filter trivially identical answers
   const correctNorm = correct.toLowerCase().trim();
   const seen = new Set([correctNorm]);
   const result = [];
   for(const c of tiers){
     const text = strip(c.a).slice(0,160);
     const norm = text.toLowerCase().trim();
-    // Skip: empty, too similar to correct (>85% overlap), duplicate
     if(!text || text.length < 3) continue;
     if(seen.has(norm)) continue;
     if(similarity(norm, correctNorm) > 0.85) continue;
@@ -309,15 +425,12 @@ function getDistractors(card, correct, count, strategy){
     result.push(text);
     if(result.length >= count) break;
   }
-
-  // Pad with generic fallbacks if we still don't have enough
   const fallbacks = ['None of the above', 'Cannot be determined', 'All of the above', 'Insufficient data'];
   let fi = 0;
   while(result.length < count){ result.push(fallbacks[fi++ % fallbacks.length]); }
   return result.slice(0,count);
 }
 
-// Quick string similarity (Jaccard on trigrams)
 function similarity(a, b){
   if(!a||!b) return 0;
   const tri = s => { const t=new Set(); for(let i=0;i<s.length-2;i++) t.add(s.slice(i,i+3)); return t; };
@@ -340,10 +453,19 @@ function renderQ(){
   if(qIdx>=quizCards.length){ showResults(); return; }
   answered=false; hintUsed=false;
   const card = quizCards[qIdx];
-  curQ = buildQuestion(card);
-  const cfg = MODES[mode];
 
-  // HUD update
+  // Use AI question if available, otherwise build locally
+  if(aiQuestions.length > qIdx){
+    curQ = aiQuestions[qIdx];
+  } else {
+    curQ = buildQuestion(card);
+  }
+
+  const cfg = MODES[mode];
+  const aiTag = curQ.aiGenerated
+    ? ' <span style="font-size:.52rem;background:var(--ac-s);color:var(--ac);border:1px solid var(--br);border-radius:5px;padding:.06rem .38rem;font-family:\'DM Mono\',monospace;letter-spacing:.06em;vertical-align:middle">✨ AI</span>'
+    : '';
+
   document.getElementById('top-fill').style.width = (qIdx/quizCards.length*100)+'%';
   document.getElementById('q-counter').textContent = `${qIdx+1} / ${quizCards.length}`;
   document.getElementById('pts-display').textContent = pts.toLocaleString();
@@ -351,36 +473,31 @@ function renderQ(){
   document.getElementById('pts-possible').textContent = `+${cfg.base+cfg.timeBonus}`;
   updateStreakUI();
 
-  // Tag
   const tagEl = document.getElementById('q-tag');
-  tagEl.textContent = curQ.tag.text;
+  tagEl.innerHTML = curQ.tag.text + aiTag;
   tagEl.className = 'q-tag '+curQ.tag.cls;
 
-  // Topic/chapter meta
   const metaEl = document.getElementById('q-meta');
   const parts = [];
-  if(card.topic) parts.push(card.topic);
-  if(card.chapter && card.chapter!=='General') parts.push(card.chapter.slice(0,30));
+  if(curQ.topic) parts.push(curQ.topic);
+  else if(card.topic) parts.push(card.topic);
+  if((curQ.chapter||card.chapter) && (curQ.chapter||card.chapter)!=='General') parts.push((curQ.chapter||card.chapter).slice(0,30));
   metaEl.textContent = parts.join(' · ');
   metaEl.style.display = parts.length ? '' : 'none';
 
-  // Format-specific label
   const fmtLabel = document.getElementById('fmt-label');
   if(curQ.fmt==='truefalse'){ fmtLabel.style.display=''; fmtLabel.textContent='Is this answer correct for the question below?'; }
-  else if(curQ.fmt==='reverse'){ fmtLabel.style.display=''; fmtLabel.textContent=curQ.label; }
+  else if(curQ.fmt==='reverse'){ fmtLabel.style.display=''; fmtLabel.textContent=curQ.label||'Which question does this answer belong to?'; }
   else { fmtLabel.style.display='none'; }
 
-  // TF block
   const tfBlock = document.getElementById('tf-block');
   if(curQ.fmt==='truefalse'){
     document.getElementById('tf-ans').textContent = curQ.shownAns;
     tfBlock.style.display='';
   } else { tfBlock.style.display='none'; }
 
-  // Question text
   document.getElementById('q-text').textContent = curQ.prompt.slice(0,300);
 
-  // Options
   const grid = document.getElementById('opts-grid');
   grid.innerHTML='';
   const LETTERS=['A','B','C','D'];
@@ -399,17 +516,14 @@ function renderQ(){
     grid.appendChild(btn);
   });
 
-  // Hint
   const hintBtn = document.getElementById('hint-btn');
   hintBtn.style.display = (cfg.hint && curQ.fmt==='mcq') ? 'flex' : 'none';
   hintBtn.textContent='💡 Hint (H)';
   hintBtn.classList.remove('used');
 
-  // Reset
   document.getElementById('feedback').className='feedback';
   document.getElementById('next-wrap').classList.add('hidden');
 
-  // Animate
   ['q-card','opts-grid'].forEach(id=>{ const el=document.getElementById(id); el.style.animation='none'; el.offsetHeight; el.style.animation=''; });
 
   startTimer();
@@ -460,7 +574,8 @@ function pickAnswer(btn, idx){
   } else { streak=0; }
   updateStreakUI();
 
-  answers.push({ q:curQ.card.q, correct, topic:curQ.card.topic||'General', type:curQ.card.type||'recall', chapter:curQ.card.chapter||'General', cardRef:curQ.card, timeLeft, earned, fmt:curQ.fmt, hintUsed });
+  const cardRef = curQ.card || quizCards[qIdx];
+  answers.push({ q:curQ.prompt, correct, topic:curQ.topic||cardRef?.topic||'General', type:cardRef?.type||'recall', chapter:curQ.chapter||cardRef?.chapter||'General', cardRef, timeLeft, earned, fmt:curQ.fmt, hintUsed });
   showFeedback(correct, correct?null:curQ.opts[curQ.correctIdx], earned);
   setTimeout(()=>{
     document.getElementById('next-label').textContent = qIdx+1>=quizCards.length ? 'See Results' : 'Next';
@@ -477,7 +592,8 @@ function timeout(){
     if(b.dataset.correct==='true') b.classList.add('correct');
     else b.classList.add('dim');
   });
-  answers.push({ q:curQ.card.q, correct:false, topic:curQ.card.topic||'General', type:curQ.card.type||'recall', chapter:curQ.card.chapter||'General', cardRef:curQ.card, timeLeft:0, earned:0, fmt:curQ.fmt, hintUsed:false });
+  const cardRef = curQ.card || quizCards[qIdx];
+  answers.push({ q:curQ.prompt, correct:false, topic:curQ.topic||cardRef?.topic||'General', type:cardRef?.type||'recall', chapter:curQ.chapter||cardRef?.chapter||'General', cardRef, timeLeft:0, earned:0, fmt:curQ.fmt, hintUsed:false });
   const fb=document.getElementById('feedback');
   document.getElementById('fb-icon').textContent='⏰';
   document.getElementById('fb-text').innerHTML="<strong>Time's up!</strong> Correct answer shown above.";
@@ -516,7 +632,6 @@ function useHint(){
   hintUsed=true;
   const btn=document.getElementById('hint-btn');
   btn.classList.add('used'); btn.textContent='💡 Hint used';
-  // Eliminate one random wrong option
   const btns=Array.from(document.querySelectorAll('.opt-btn'));
   const wrong=btns.filter(b=>b.dataset.correct!=='true'&&!b.disabled&&!b.classList.contains('dim'));
   if(wrong.length){ const pick=wrong[Math.floor(Math.random()*wrong.length)]; pick.classList.add('dim'); pick.disabled=true; }
@@ -567,6 +682,7 @@ function showResults(){
   const wrong=answers.filter(a=>!a.correct);
   const timed=answers.filter(a=>!a.correct&&a.timeLeft===0);
   const avgTime=Math.round(answers.reduce((s,a)=>s+(cfg.timer-a.timeLeft),0)/answers.length);
+  const aiCount = aiQuestions.length > 0 ? Math.min(aiQuestions.length, total) : 0;
 
   writeMastery();
   $.set('fg:last_quiz_score',{score,total,pct,difficulty:mode});
@@ -583,7 +699,7 @@ function showResults(){
   document.getElementById('res-grade').textContent=grade;
   document.getElementById('res-points').textContent=pts.toLocaleString()+' pts';
   const rb=document.getElementById('res-mode-badge');
-  rb.textContent=cfg.emoji+' '+cfg.label+' Mode';
+  rb.textContent=cfg.emoji+' '+cfg.label+' Mode'+(aiCount>0?' · ✨ AI Questions':'');
   rb.style.color=cfg.color; rb.style.background=cfg.colorBg; rb.style.borderColor=cfg.color;
 
   document.getElementById('res-stats').innerHTML=`
@@ -594,13 +710,12 @@ function showResults(){
     <div class="rstat"><span class="rstat-n" style="color:#38bdf8">${avgTime}s</span><span class="rstat-l">Avg Time</span></div>
     <div class="rstat"><span class="rstat-n" style="color:var(--ac)">${pts.toLocaleString()}</span><span class="rstat-l">Points</span></div>`;
 
-  // Banner
   const bannerDiv=document.getElementById('res-banner');
   if(pct===100){ bannerDiv.innerHTML='<div class="res-banner-inner perfect">🎉 Flawless Victory! Perfect score!</div>'; launchConfetti(cfg.color); }
   else if(pct>=80){ bannerDiv.innerHTML='<div class="res-banner-inner high">🌟 Excellent — you\'re well prepared!</div>'; }
+  else if(aiCount>0){ bannerDiv.innerHTML=`<div class="res-banner-inner" style="background:var(--ac-s);border:1px solid var(--br);border-radius:12px;padding:.65rem 1rem;font-size:.82rem;color:var(--ink-2);text-align:center">✨ ${aiCount} brand-new AI questions — every quiz is unique!</div>`; }
   else bannerDiv.innerHTML='';
 
-  // Format breakdown
   const byFmt={};
   answers.forEach(a=>{ if(!byFmt[a.fmt]){byFmt[a.fmt]={c:0,t:0};} byFmt[a.fmt].t++; if(a.correct)byFmt[a.fmt].c++; });
   const fmtNames={mcq:'Multiple Choice',truefalse:'True / False',reverse:'Reverse Q'};
@@ -609,13 +724,11 @@ function showResults(){
     return `<div class="fmt-row"><span class="fmt-lbl">${fmtNames[f]||f}</span><span class="fmt-bar-wrap"><span class="fmt-bar" style="width:${p}%"></span></span><span class="fmt-stat">${d.c}/${d.t} · ${p}%</span></div>`;
   }).join('');
 
-  // Weak topics
   const topErr={};
   wrong.forEach(a=>{ topErr[a.topic]=(topErr[a.topic]||0)+1; });
   const weakTopics=Object.entries(topErr).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const weakHtml=weakTopics.length?`<div class="res-section" style="margin-top:1.1rem"><div class="res-sec-title">Topics to Review</div><div class="weak-tags">${weakTopics.map(([t,n])=>`<span class="weak-tag">${esc(t)} · ${n} wrong</span>`).join('')}</div></div>`:'';
 
-  // Per-question list
   const qList=answers.map((a,i)=>{
     const st=a.correct?'correct':a.timeLeft===0?'timed':'wrong';
     const ic=a.correct?'✓':a.timeLeft===0?'⏰':'✗';
@@ -668,3 +781,4 @@ function launchConfetti(base){
 function strip(s){ return (s||'').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&quot;/g,'"').trim(); }
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function shuffle(a){ const b=[...a]; for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];} return b; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }

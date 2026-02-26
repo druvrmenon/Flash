@@ -141,6 +141,24 @@
   </div>
 </section>
 
+<!-- ═══ AI GENERATING SCREEN ══════════════════════════ -->
+<section class="hidden" id="gen-screen">
+  <div class="gen-wrap">
+    <div class="gen-spinner"></div>
+    <div class="gen-title">Building your quiz with AI…</div>
+    <div class="gen-sub" id="gen-sub">Asking Gemini to craft fresh questions and tricky distractors</div>
+    <div class="gen-steps" id="gen-steps">
+      <div class="gen-step active" id="gstep-0"><span class="gs-dot"></span>Analysing deck topics…</div>
+      <div class="gen-step" id="gstep-1"><span class="gs-dot"></span>Generating questions &amp; options…</div>
+      <div class="gen-step" id="gstep-2"><span class="gs-dot"></span>Adding tricky distractors…</div>
+      <div class="gen-step" id="gstep-3"><span class="gs-dot"></span>Shuffling and preparing quiz…</div>
+    </div>
+    <div class="gen-fallback hidden" id="gen-fallback">
+      <div class="gen-fb-text">⚠ Could not reach the AI — using your saved flashcards to build the quiz instead.</div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ ACTIVE QUIZ ════════════════════════════════════ -->
 <section class="hidden" id="quiz-section">
   <div class="quiz-wrap">
