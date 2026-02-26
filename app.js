@@ -669,7 +669,7 @@ function renderDash(){
       .forEach(([topic,d])=>{
         const pct=Math.round(d.known/(d.known+d.review)*100);
         const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${topic}</td><td style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--ink-2)">${d.chapter||'—'}</td><td style="color:#16a34a;font-weight:600">${d.known}</td><td style="color:#dc2626;font-weight:600">${d.review}</td><td><span>${pct}%</span><span class="mbar-w"><span class="mbar" style="width:${pct}%"></span></span></td><td style="font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--ac2)">${d.due>0?'⏰ '+d.due:''}</td>`;
+        tr.innerHTML=`<td>${topic}</td><td style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--ink-2)">${d.chapter||'—'}</td><td style="color:#16a34a;font-weight:600">${d.known}</td><td style="color:#dc2626;font-weight:600">${d.review}</td><td><span>${pct}%</span><span class="mbar-w"><span class="mbar" style="width:${pct}%"></span></span></td><td style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--ac2)">${d.due>0?'⏰ '+d.due:''}</td>`;
         tbody.appendChild(tr);
       });
   }
@@ -679,7 +679,7 @@ function renderDash(){
     .map(([t,d])=>({t,pct:Math.round(d.known/(d.known+d.review)*100),ch:d.chapter}))
     .sort((a,b)=>a.pct-b.pct).slice(0,5);
   if(!weakSpots.length){wl.innerHTML='<div style="color:var(--ink-2);font-size:.85rem">Rate cards while studying to identify weak spots!</div>';}
-  else{wl.innerHTML='';weakSpots.forEach(ws=>{const el=document.createElement('div');el.className='weak-item';el.innerHTML=`<div><div class="wi-topic">${ws.t}</div><div style="font-size:.68rem;color:var(--ink-3);font-family:'JetBrains Mono',monospace;margin-top:.15rem">${ws.ch||''}</div></div><div class="wi-pct">${ws.pct}% known</div><button class="wi-btn" data-topic="${ws.t}">+ Generate 5 More</button>`;el.querySelector('.wi-btn').addEventListener('click',()=>generateWeakCards(ws.t,ws.ch));wl.appendChild(el);});}
+  else{wl.innerHTML='';weakSpots.forEach(ws=>{const el=document.createElement('div');el.className='weak-item';el.innerHTML=`<div><div class="wi-topic">${ws.t}</div><div style="font-size:.68rem;color:var(--ink-3);font-family:'DM Mono',monospace;margin-top:.15rem">${ws.ch||''}</div></div><div class="wi-pct">${ws.pct}% known</div><button class="wi-btn" data-topic="${ws.t}">+ Generate 5 More</button>`;el.querySelector('.wi-btn').addEventListener('click',()=>generateWeakCards(ws.t,ws.ch));wl.appendChild(el);});}
 }
 
 async function generateWeakCards(topic,chapter){
