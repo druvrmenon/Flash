@@ -25,27 +25,34 @@
     <p>Enter your free Gemini 2.5 API key to unlock AI-powered flashcards from any PDF or YouTube lecture.</p>
     <div><span class="lbl">Gemini API Key</span><input class="inp" type="password" id="api-key-input" placeholder="AIza…" autocomplete="off" spellcheck="false"/></div>
     <button class="btn-full" id="api-save-btn">Save Key &amp; Start Learning →</button>
-    <div class="api-note">🔑 Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank"><strong>aistudio.google.com/apikey</strong></a> → Create API key → Create API key in new project.<br><br>⚠ <strong>Use AI Studio only</strong> — not Google Cloud Console. Cloud Console keys have no free tier.<br><br>🔒 Stored in your browser only. Sent directly to Google.</div>
+    <div class="api-note">🔑 Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank"><strong>aistudio.google.com/apikey</strong></a> → Create API key in new project.<br><br>⚠ <strong>Use AI Studio only</strong> — not Google Cloud Console. Cloud Console keys have no free tier.<br><br>🔒 Stored in your browser only. Sent directly to Google.</div>
   </div>
 </div>
 
 <!-- ══ UPLOAD SCREEN ══ -->
 <div id="screen-upload" class="screen">
   <nav class="nav">
-    <div class="nav-brand">FlashGen <span style="font-size:.55rem;font-family:'JetBrains Mono',monospace;opacity:.5;font-weight:400;-webkit-text-fill-color:var(--ink-2);background:none">gemma-3-27b</span></div>
+    <div class="nav-brand">FlashGen <span style="font-size:.55rem;font-family:'DM Mono',monospace;opacity:.5;font-weight:400;-webkit-text-fill-color:var(--ink-2);background:none">gemma-3-27b</span></div>
     <div class="nav-streak" id="nav-streak">🔥<span id="nav-snum">0</span></div>
     <div class="nav-actions">
       <div class="swatches" id="sw-row">
-        <div class="sw active" data-t="aurora" style="background:linear-gradient(135deg,#7c6ffa,#22d3ee)" title="Aurora"></div>
+        <!-- Light themes -->
         <div class="sw" data-t="parchment" style="background:#b45309" title="Parchment"></div>
         <div class="sw" data-t="sakura" style="background:#db2777" title="Sakura"></div>
         <div class="sw" data-t="ocean" style="background:#0369a1" title="Ocean"></div>
         <div class="sw" data-t="forest" style="background:#166534" title="Forest"></div>
+        <!-- Dark themes -->
+        <div class="sw active" data-t="aurora" style="background:linear-gradient(135deg,#7c6ffa,#22d3ee)" title="Aurora (Dark)"></div>
+        <div class="sw" data-t="neon" style="background:linear-gradient(135deg,#a855f7,#ec4899)" title="Neon (Dark)"></div>
+        <div class="sw" data-t="midnight" style="background:linear-gradient(135deg,#1e3a5f,#0f2340)" title="Midnight (Dark)"></div>
+        <div class="sw" data-t="cyberpunk" style="background:linear-gradient(135deg,#ff0080,#7700ff)" title="Cyberpunk (Dark)"></div>
+        <div class="sw" data-t="dracula" style="background:linear-gradient(135deg,#bd93f9,#282a36)" title="Dracula (Dark)"></div>
+        <div class="sw" data-t="obsidian" style="background:linear-gradient(135deg,#2d2d2d,#1a1a2e)" title="Obsidian (Dark)"></div>
+        <div class="sw" data-t="deepspace" style="background:linear-gradient(135deg,#0a0a23,#4a0072)" title="Deep Space (Dark)"></div>
         <div class="sw" data-t="ember" style="background:linear-gradient(135deg,#c2410c,#f59e0b)" title="Ember"></div>
-        <div class="sw" data-t="neon" style="background:linear-gradient(135deg,#a855f7,#ec4899)" title="Neon"></div>
-        <div class="sw" data-t="slate" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)" title="Slate"></div>
       </div>
       <div class="offline-dot" id="offline-dot"></div>
+      <button class="nb" id="btn-timer">⏱ Timer</button>
       <button class="nb" id="btn-dash">📊 Dashboard</button>
       <button class="nb" id="btn-lib">📚 Library</button>
       <button class="nb" id="btn-key">🔑 Key</button>
@@ -55,18 +62,47 @@
   <div class="upload-grid">
     <div class="hero fin">
       <h1>Study smarter.<br><span>Ace your exams.</span></h1>
-      <p>FlashGen turns any PDF or YouTube lecture into exam-ready flashcards — with spaced repetition, quiz mode, voice, and full progress tracking.</p>
+      <p>FlashGen turns PDFs &amp; YouTube lectures into exam-ready flashcards — with spaced repetition, quiz mode, AI doubts, and full progress tracking.</p>
       <div class="feat-chips">
         <span class="fc">🧠 SM-2 Spaced Repetition</span>
         <span class="fc">🎯 Mock Quiz Mode</span>
         <span class="fc">🔊 Voice Mode</span>
         <span class="fc">📊 Progress Dashboard</span>
         <span class="fc">🎯 Weak Spot Detector</span>
-        <span class="fc">📖 NCERT Chapters</span>
-        <span class="fc">▶️ YouTube → Cards</span>
-        <span class="fc">🔀 Deck Merge</span>
-        <span class="fc">💡 AI Explain</span>
-        <span class="fc">🎨 8 Themes</span>
+        <span class="fc">📝 Weak Topic Notes</span>
+        <span class="fc">🤖 AI Doubt Chat</span>
+        <span class="fc">⏱ Focus Timer</span>
+        <span class="fc">📄 Multi-PDF Upload</span>
+        <span class="fc">🎨 11 Themes</span>
+        <span class="fc">🏷 Smart Tags</span>
+        <span class="fc">📋 AI Summary</span>
+      </div>
+
+      <!-- NEW FEATURE HIGHLIGHT -->
+      <div class="new-features-banner">
+        <div class="nf-title">✨ New Features</div>
+        <div class="nf-grid">
+          <div class="nf-item">
+            <span class="nf-icon">📄</span>
+            <div><strong>Multi-PDF Upload</strong><br>Upload multiple PDFs and merge them into one deck</div>
+          </div>
+          <div class="nf-item">
+            <span class="nf-icon">🤖</span>
+            <div><strong>AI Doubt Chat</strong><br>Ask the AI doubts about any weak topic in real-time</div>
+          </div>
+          <div class="nf-item">
+            <span class="nf-icon">📝</span>
+            <div><strong>Weak Topic Notes</strong><br>Write your own notes on weak topics for better retention</div>
+          </div>
+          <div class="nf-item">
+            <span class="nf-icon">⏱</span>
+            <div><strong>Focus Timer</strong><br>Pomodoro-style study timer with session tracking</div>
+          </div>
+          <div class="nf-item">
+            <span class="nf-icon">📋</span>
+            <div><strong>AI Summary</strong><br>Get an instant AI-generated topic summary from any card</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -77,13 +113,15 @@
       </div>
 
       <div class="tabp active" id="tab-pdf">
+        <!-- MULTI-FILE DROP ZONE -->
         <div class="dz" id="dz">
-          <input type="file" id="pdf-input" accept=".pdf"/>
+          <input type="file" id="pdf-input" accept=".pdf" multiple/>
           <div class="dz-icon">📄</div>
-          <div class="dz-title">Tap to choose a PDF</div>
-          <div class="dz-sub">NCERT chapters, notes, past papers · max 20 MB</div>
-          <div class="fpill" id="fpill"><span>✅</span><span id="fname">—</span></div>
+          <div class="dz-title">Tap to choose PDFs</div>
+          <div class="dz-sub">Drop multiple PDFs here · Each max 20 MB · They'll be combined into one deck</div>
         </div>
+        <!-- File list -->
+        <div id="file-list" class="file-list" style="display:none"></div>
       </div>
 
       <div class="tabp" id="tab-yt">
@@ -143,7 +181,7 @@
   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.6rem;padding:2rem">
     <div class="spinner"></div>
     <div class="ld-h">Generating flashcards…</div>
-    <div class="ld-s">Powered by Gemma 3 27B · 30 requests/min free ✓</div>
+    <div class="ld-s" id="ld-sub">Powered by Gemma 3 27B · 30 requests/min free ✓</div>
     <div class="ld-steps">
       <div class="ldstep" id="ls0"><div class="ldstep-dot"></div>Reading source content…</div>
       <div class="ldstep" id="ls1"><div class="ldstep-dot"></div>Extracting formulas, diagrams &amp; concepts…</div>
@@ -161,6 +199,8 @@
       <button class="nb sb-toggle" id="sb-toggle">🏷 Topics</button>
       <button class="nb" id="cv-back">← Library</button>
       <button class="nb" id="cv-quiz">🎯 Quiz Mode</button>
+      <button class="nb" id="cv-notes">📝 Notes</button>
+      <button class="nb" id="cv-summary">📋 Summary</button>
       <button class="nb" id="cv-dash">📊 Stats</button>
       <button class="nb primary" id="cv-new">+ New</button>
     </div>
@@ -173,6 +213,9 @@
       <div class="sb-meta-t" id="sb-meta">—</div>
       <div id="sb-chapters"></div>
       <div id="sb-topics"></div>
+      <!-- Weak Topics section in sidebar -->
+      <div class="sbhd" id="weak-topics-hdr" style="display:none;margin-top:.5rem">⚠ Weak Topics</div>
+      <div id="sb-weak-topics"></div>
     </div>
     <div class="card-area">
       <div class="doc-banner fin">
@@ -201,7 +244,7 @@
           </div>
         </div>
       </div>
-      <!-- SM-2 Rating (shows after flip) -->
+      <!-- SM-2 Rating -->
       <div class="sr-row fin" id="sr-row" style="display:none;animation-delay:.08s">
         <button class="sr-btn sr-again" id="sr-again">↩ Again<br><small>forgot</small></button>
         <button class="sr-btn sr-hard" id="sr-hard">😓 Hard<br><small>+1 day</small></button>
@@ -216,6 +259,7 @@
         <button class="ctrl ctrl-act" id="explain-btn">💡 Explain</button>
         <button class="ctrl ctrl-act" id="voice-btn">🔊 Read</button>
         <button class="ctrl ctrl-act" id="shuffle-btn">🔀</button>
+        <button class="ctrl ctrl-act" id="doubt-btn">🤖 Ask AI</button>
       </div>
       <div class="swipe-indicator">👆 Swipe card left/right to navigate</div>
       <div class="kb-row">
@@ -234,6 +278,84 @@
       <button class="explain-close" id="explain-close">✕ Close</button>
     </div>
     <div id="explain-body"></div>
+  </div>
+</div>
+
+<!-- ══ AI DOUBT CHAT MODAL ══ -->
+<div class="modal-overlay" id="doubt-overlay">
+  <div class="doubt-modal">
+    <div class="doubt-hdr">
+      <div class="doubt-title">🤖 AI Doubt Assistant</div>
+      <button class="explain-close" id="doubt-close">✕ Close</button>
+    </div>
+    <div class="doubt-context" id="doubt-context"></div>
+    <div class="doubt-messages" id="doubt-messages"></div>
+    <div class="doubt-input-row">
+      <input class="doubt-input" type="text" id="doubt-input" placeholder="Ask anything about this topic…" autocomplete="off"/>
+      <button class="doubt-send" id="doubt-send">Send →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NOTES MODAL (Weak Topic Notes) ══ -->
+<div class="modal-overlay" id="notes-overlay">
+  <div class="notes-modal">
+    <div class="notes-hdr">
+      <div class="notes-title">📝 My Topic Notes</div>
+      <button class="explain-close" id="notes-close">✕ Close</button>
+    </div>
+    <div class="notes-tabs" id="notes-topic-tabs"></div>
+    <div class="notes-body">
+      <div class="notes-meta">Write notes on weak topics. Explain concepts in your own words — it's proven to boost retention!</div>
+      <select class="sel" id="notes-topic-sel" style="margin-bottom:.75rem"></select>
+      <textarea class="notes-area" id="notes-textarea" placeholder="Write your understanding of this topic here…&#10;&#10;• What is the core concept?&#10;• Why does it work this way?&#10;• Common mistakes to avoid…"></textarea>
+      <div class="notes-actions">
+        <button class="nb primary" id="notes-save">💾 Save Note</button>
+        <button class="nb" id="notes-ask-ai">🤖 Ask AI About This</button>
+        <button class="nb" id="notes-clear">🗑 Clear</button>
+      </div>
+      <div class="saved-notes" id="saved-notes-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUMMARY MODAL ══ -->
+<div class="modal-overlay" id="summary-overlay">
+  <div class="explain-modal">
+    <div class="explain-hdr">
+      <div class="explain-title">📋 AI Topic Summary</div>
+      <button class="explain-close" id="summary-close">✕ Close</button>
+    </div>
+    <div id="summary-body"></div>
+  </div>
+</div>
+
+<!-- ══ FOCUS TIMER MODAL ══ -->
+<div class="modal-overlay" id="timer-overlay">
+  <div class="timer-modal">
+    <div class="timer-hdr">
+      <div class="timer-title">⏱ Focus Timer</div>
+      <button class="explain-close" id="timer-close">✕ Close</button>
+    </div>
+    <div class="timer-display" id="timer-display">25:00</div>
+    <div class="timer-label" id="timer-label">Study Session</div>
+    <div class="timer-ring-wrap">
+      <svg class="timer-ring" viewBox="0 0 120 120">
+        <circle class="timer-ring-bg" cx="60" cy="60" r="52"/>
+        <circle class="timer-ring-prog" id="timer-ring-prog" cx="60" cy="60" r="52"/>
+      </svg>
+    </div>
+    <div class="timer-presets">
+      <button class="nb timer-preset active" data-mins="25">25m Pomodoro</button>
+      <button class="nb timer-preset" data-mins="45">45m Deep</button>
+      <button class="nb timer-preset" data-mins="5">5m Break</button>
+      <button class="nb timer-preset" data-mins="15">15m Break</button>
+    </div>
+    <div class="timer-ctrls">
+      <button class="btn-full" id="timer-start">▶ Start</button>
+      <button class="nb" id="timer-reset">↺ Reset</button>
+    </div>
+    <div class="timer-sessions">Sessions today: <strong id="timer-sessions-count">0</strong> · Total: <strong id="timer-total-mins">0</strong>m</div>
   </div>
 </div>
 
@@ -268,7 +390,7 @@
         <div class="badges-g" id="badges-g"></div>
       </div>
       <div class="dc" style="grid-column:1/-1">
-        <h3>🎯 Weak Spots <small style="font-size:.7rem;color:var(--ink-2);font-weight:300;font-family:'JetBrains Mono',monospace"> — topics needing attention</small></h3>
+        <h3>🎯 Weak Spots <small style="font-size:.7rem;color:var(--ink-2);font-weight:300;font-family:'DM Mono',monospace"> — topics needing attention</small></h3>
         <div class="weak-list" id="weak-list"><div style="color:var(--ink-2);font-size:.85rem">Rate cards to identify weak spots!</div></div>
       </div>
       <div class="dc" style="grid-column:1/-1">

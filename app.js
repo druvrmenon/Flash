@@ -1,5 +1,6 @@
 /* ══════════════════════════════════════════
-   FLASHGEN v3 — COMPLETE ENGINE
+   FLASHGEN v4 — COMPLETE ENGINE
+   New: Multi-PDF, AI Doubt Chat, Weak Topic Notes, Focus Timer, AI Summary
 ══════════════════════════════════════════ */
 
 // ── BADGES ──
@@ -18,13 +19,18 @@ const BADGES=[
   {id:'yt_used',e:'▶️',n:'Video Learner',d:'Generate from YouTube'},
   {id:'merged',e:'🔀',n:'Merger',d:'Merge two decks'},
   {id:'sr_streak',e:'🧬',n:'Spaced Learner',d:'Rate 20 cards with SR'},
+  {id:'multi_pdf',e:'📄',n:'Multi-PDF',d:'Upload multiple PDFs at once'},
+  {id:'notes_writer',e:'📝',n:'Note Taker',d:'Write 3 topic notes'},
+  {id:'focus_1h',e:'⏱',n:'Focused',d:'Complete 1 hour of study time'},
 ];
 
 // ── STATE ──
-let selCount=10, pdfFile=null, ytUrl='', activeTab='pdf', selExam='CBSE-12';
+let selCount=10, pdfFiles=[], ytUrl='', activeTab='pdf', selExam='CBSE-12';
 let allCards=[], filteredCards=[], cardIdx=0, seenSet=new Set(), flipped=false;
 let curDeckId=null, sidebarOpen=false, mchart=null;
 let mergingMode=false, mergeSelected=new Set();
+let doubtHistory=[], currentDoubtCard=null;
+let timerInterval=null, timerRunning=false, timerSecondsLeft=25*60, timerTotalSeconds=25*60;
 
 // ── STORAGE ──
 const $={
@@ -43,9 +49,11 @@ const getRes=id=>$.get('fg:r:'+id,{});
 const setRes=(id,r)=>$.set('fg:r:'+id,r);
 const getSR=id=>$.get('fg:sr:'+id,{});
 const setSR=(id,r)=>$.set('fg:sr:'+id,r);
+const getNotes=()=>$.get('fg:notes',[]);
+const setNotes=n=>$.set('fg:notes',n);
 
 // ── THEMES ──
-const THEMES=['aurora','parchment','sakura','ocean','forest','ember','neon','slate'];
+const THEMES=['aurora','neon','midnight','cyberpunk','dracula','obsidian','deepspace','parchment','sakura','ocean','forest','ember'];
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme',t);$.set('fg:theme',t);
   document.querySelectorAll('.sw').forEach(s=>s.classList.toggle('active',s.dataset.t===t));
@@ -148,7 +156,12 @@ document.getElementById('api-save-btn').addEventListener('click',()=>{
   saveKey(k);showScreen('upload');renderLibrary();renderStreakNav();
 });
 document.getElementById('api-key-input').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('api-save-btn').click();});
+
+// ── NAV BUTTONS ──
 document.getElementById('btn-key').addEventListener('click',()=>{document.getElementById('api-key-input').value=getKey();showScreen('apikey');});
+document.getElementById('btn-lib').addEventListener('click',()=>document.getElementById('lib-sec').scrollIntoView({behavior:'smooth'}));
+document.getElementById('btn-dash').addEventListener('click',()=>{showScreen('dashboard');renderDash();});
+document.getElementById('btn-timer').addEventListener('click',()=>openTimer());
 
 // ── TABS ──
 document.querySelectorAll('.tab').forEach(b=>{
@@ -161,23 +174,59 @@ document.querySelectorAll('.tab').forEach(b=>{
   });
 });
 
-// ── UPLOAD ──
-const dz=document.getElementById('dz'),pdfInp=document.getElementById('pdf-input');
-const fpill=document.getElementById('fpill'),fname=document.getElementById('fname'),genBtn=document.getElementById('gen-btn');
-pdfInp.addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+// ══════════════════════════════════════
+// MULTI-FILE UPLOAD
+// ══════════════════════════════════════
+const dz=document.getElementById('dz');
+const pdfInp=document.getElementById('pdf-input');
+const genBtn=document.getElementById('gen-btn');
+
+pdfInp.addEventListener('change',e=>{
+  if(e.target.files.length) addFiles([...e.target.files]);
+  pdfInp.value=''; // reset so same file can be re-added
+});
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
 dz.addEventListener('drop',e=>{
   e.preventDefault();dz.classList.remove('over');
-  const f=e.dataTransfer.files[0];
-  if(f&&f.type==='application/pdf')handleFile(f);else showToast('Please drop a PDF file','error');
+  const files=[...e.dataTransfer.files].filter(f=>f.type==='application/pdf');
+  if(!files.length){showToast('Please drop PDF files only','error');return;}
+  addFiles(files);
 });
-function handleFile(f){
-  if(f.size>20*1024*1024){showToast('File too large (max 20MB)','error');return;}
-  pdfFile=f;fname.textContent=f.name;fpill.classList.add('show');updateGenBtn();
+
+function addFiles(newFiles){
+  const tooBig=newFiles.filter(f=>f.size>20*1024*1024);
+  if(tooBig.length){showToast(`${tooBig.length} file(s) too large (max 20MB each)','error`);newFiles=newFiles.filter(f=>f.size<=20*1024*1024);}
+  if(!newFiles.length) return;
+  pdfFiles=[...pdfFiles,...newFiles];
+  if(pdfFiles.length>1) earnBadge('multi_pdf');
+  renderFileList();
+  updateGenBtn();
 }
+
+function renderFileList(){
+  const fl=document.getElementById('file-list');
+  if(!pdfFiles.length){fl.style.display='none';return;}
+  fl.style.display='flex';
+  fl.innerHTML='';
+  pdfFiles.forEach((f,i)=>{
+    const item=document.createElement('div');item.className='file-item';
+    item.innerHTML=`<span>📄</span><span class="file-item-name" title="${f.name}">${f.name}</span><span class="file-item-size">${(f.size/1024/1024).toFixed(1)}MB</span><button class="file-item-del" data-idx="${i}">✕</button>`;
+    item.querySelector('.file-item-del').addEventListener('click',e=>{
+      e.stopPropagation();pdfFiles.splice(i,1);renderFileList();updateGenBtn();
+    });
+    fl.appendChild(item);
+  });
+  // Add more button
+  const addBtn=document.createElement('button');
+  addBtn.className='file-add-more';
+  addBtn.innerHTML='+ Add more PDFs<input type="file" accept=".pdf" multiple style="position:absolute;inset:0;opacity:0;cursor:pointer"/>';
+  addBtn.querySelector('input').addEventListener('change',e=>{if(e.target.files.length)addFiles([...e.target.files]);e.target.value='';});
+  fl.appendChild(addBtn);
+}
+
 document.getElementById('yt-inp').addEventListener('input',e=>{ytUrl=e.target.value.trim();updateGenBtn();});
-function updateGenBtn(){genBtn.disabled=activeTab==='pdf'?!pdfFile:(!ytUrl||!ytUrl.includes('youtube'));}
+function updateGenBtn(){genBtn.disabled=activeTab==='pdf'?!pdfFiles.length:(!ytUrl||!ytUrl.includes('youtube'));}
 document.getElementById('exam-sel').addEventListener('change',e=>selExam=e.target.value);
 document.getElementById('cnt-row').addEventListener('click',e=>{
   const b=e.target.closest('.cc');if(!b)return;
@@ -189,8 +238,6 @@ document.getElementById('cust-n').addEventListener('input',e=>{
   if(v>=3&&v<=50){selCount=v;document.querySelectorAll('.cc').forEach(x=>x.classList.remove('active'));}
 });
 genBtn.addEventListener('click',runGen);
-document.getElementById('btn-lib').addEventListener('click',()=>document.getElementById('lib-sec').scrollIntoView({behavior:'smooth'}));
-document.getElementById('btn-dash').addEventListener('click',()=>{showScreen('dashboard');renderDash();});
 
 // ── LIBRARY ──
 function renderLibrary(){
@@ -204,9 +251,10 @@ function renderLibrary(){
     const sr=getSR(item.id),today=new Date().toISOString().slice(0,10);
     const due=Object.values(sr).filter(v=>v.nextReview&&v.nextReview<=today).length;
     const el=document.createElement('div');el.className='lc';el.dataset.id=item.id;
+    const srcIcon=item.source==='yt'?'▶️':item.source==='multi'?'📚':'📘';
     el.innerHTML=`<input type="checkbox" class="merge-cb" data-id="${item.id}">
       <button class="lc-del">✕</button>
-      <div class="lc-icon">${item.source==='yt'?'▶️':'📘'}</div>
+      <div class="lc-icon">${srcIcon}</div>
       <div class="lc-name" title="${item.name}">${item.name}</div>
       <div class="lc-meta">${item.count} cards · ${item.exam||'General'} · ${item.date}</div>
       ${pct!=null?`<div class="lc-pct" style="background:${pct>=70?'#dcfce7':'#fee2e2'};color:${pct>=70?'#166534':'#991b1b'}">${pct}% mastered</div>`:''}
@@ -270,18 +318,40 @@ document.getElementById('merge-do-btn').addEventListener('click',()=>{
   showToast(`✓ Merged ${merged.length} cards (${ids.length} decks)!`);
 });
 
-// ── GENERATION ──
+// ══════════════════════════════════════
+// GENERATION (Multi-PDF support)
+// ══════════════════════════════════════
 async function runGen(){
   if(!navigator.onLine){showToast('No internet — connect to generate cards','error');return;}
   selExam=document.getElementById('exam-sel').value;
   const examDate=getExamDate();
   showScreen('loading');animSteps();
+
   try{
     let cards,name,src;
     if(activeTab==='pdf'){
-      const b64=await toB64(pdfFile);
-      cards=await callGemini({type:'pdf',b64},selCount,selExam,examDate);
-      name=pdfFile.name;src='pdf';
+      if(pdfFiles.length===1){
+        // Single file — original behavior
+        const b64=await toB64(pdfFiles[0]);
+        cards=await callGemini({type:'pdf',b64},selCount,selExam,examDate);
+        name=pdfFiles[0].name;src='pdf';
+      } else {
+        // Multi-file: generate from each, combine
+        document.getElementById('ld-sub').textContent=`Processing ${pdfFiles.length} PDFs…`;
+        const perFile=Math.max(5,Math.round(selCount/pdfFiles.length));
+        let allNewCards=[];
+        for(let i=0;i<pdfFiles.length;i++){
+          document.getElementById('ld-sub').textContent=`Processing PDF ${i+1}/${pdfFiles.length}: ${pdfFiles[i].name}`;
+          const b64=await toB64(pdfFiles[i]);
+          const fc=await callGemini({type:'pdf',b64},perFile,selExam,examDate);
+          allNewCards=[...allNewCards,...fc];
+        }
+        // Deduplicate
+        const seen=new Set();
+        cards=allNewCards.filter(c=>{const k=c.q.slice(0,50).toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
+        name=`${pdfFiles.length} PDFs: ${pdfFiles.map(f=>f.name.replace('.pdf','')).join(', ').slice(0,60)}`;
+        src='multi';
+      }
     } else {
       cards=await callGemini({type:'yt',url:ytUrl},selCount,selExam,examDate);
       name=ytUrl.replace(/.*v=/,'YT: ').replace(/&.*/,'').slice(0,50);src='yt';earnBadge('yt_used');
@@ -298,7 +368,9 @@ async function runGen(){
     showToast(err.message||'Generation failed — try again','error');showScreen('upload');renderLibrary();
   }
 }
+
 function toB64(file){return new Promise((r,j)=>{const rd=new FileReader();rd.onload=()=>r(rd.result.split(',')[1]);rd.onerror=()=>j(new Error('Could not read file'));rd.readAsDataURL(file);});}
+
 async function callGemini(src,count,exam,examDate){
   const key=getKey();if(!key)throw new Error('No API key set.');
   const days=examDate?Math.ceil((new Date(examDate)-new Date())/864e5):null;
@@ -398,7 +470,7 @@ Cover all major sections. Return ONLY the JSON array, exactly ${count} items.`;
   try{cards=extractJSON(raw);}
   catch(e){
     const preview=raw.slice(0,200).replace(/</g,'&lt;');
-    throw new Error(`AI returned unexpected format. First 200 chars: "${preview}"… Please retry.`);
+    throw new Error(`AI returned unexpected format. Please retry.`);
   }
   if(!Array.isArray(cards))cards=[cards];
   cards=cards.filter(c=>c&&c.q&&c.a);
@@ -406,7 +478,9 @@ Cover all major sections. Return ONLY the JSON array, exactly ${count} items.`;
   return cards;
 }
 
-// ── EXPLAIN FEATURE ──
+// ══════════════════════════════════════
+// EXPLAIN FEATURE
+// ══════════════════════════════════════
 async function explainCard(){
   if(!filteredCards.length)return;
   const card=filteredCards[cardIdx];
@@ -430,6 +504,283 @@ async function explainCard(){
 function curDeckMeta(){if(!curDeckId)return null;const d=getDeck(curDeckId);return d?d.meta:null;}
 document.getElementById('explain-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('explain-overlay'))document.getElementById('explain-overlay').classList.remove('show');});
 document.getElementById('explain-close').addEventListener('click',()=>document.getElementById('explain-overlay').classList.remove('show'));
+
+// ══════════════════════════════════════
+// AI DOUBT CHAT
+// ══════════════════════════════════════
+function openDoubtChat(contextCard){
+  currentDoubtCard=contextCard||filteredCards[cardIdx];
+  doubtHistory=[];
+  const overlay=document.getElementById('doubt-overlay');
+  const ctx=document.getElementById('doubt-context');
+  const msgs=document.getElementById('doubt-messages');
+  ctx.textContent=currentDoubtCard?`Topic: "${currentDoubtCard.topic}" | Q: "${currentDoubtCard.q.slice(0,80)}…"`:'Ask any doubt about the current deck';
+  msgs.innerHTML='<div class="msg msg-ai">👋 Hi! I\'m your AI tutor. Ask me any doubt about this topic — I\'ll explain it clearly for your exam!</div>';
+  document.getElementById('doubt-input').value='';
+  overlay.classList.add('show');
+  document.getElementById('doubt-input').focus();
+}
+
+async function sendDoubt(){
+  const input=document.getElementById('doubt-input');
+  const q=input.value.trim();
+  if(!q)return;
+  const key=getKey();
+  if(!key){showToast('No API key set','error');return;}
+  const msgs=document.getElementById('doubt-messages');
+  // Add user message
+  const userMsg=document.createElement('div');userMsg.className='msg msg-user';userMsg.textContent=q;msgs.appendChild(userMsg);
+  input.value='';
+  // Add typing indicator
+  const typingEl=document.createElement('div');typingEl.className='msg-typing';
+  typingEl.innerHTML='<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  msgs.appendChild(typingEl);msgs.scrollTop=msgs.scrollHeight;
+  doubtHistory.push({role:'user',parts:[{text:q}]});
+  
+  try{
+    const exam=curDeckMeta()?.exam||selExam||'CBSE-12';
+    const sys=`You are a friendly, expert AI tutor for ${exam} students. 
+Context card topic: "${currentDoubtCard?.topic||'General'}"
+Card question: "${currentDoubtCard?.q||''}"
+Card answer: "${currentDoubtCard?.a?.replace(/<[^>]+>/g,'')||''}"
+
+Answer the student's doubt clearly and concisely. Use simple language. If needed, use examples. Keep answers under 200 words. End with one encouraging tip.`;
+
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+    const contents=[{role:'user',parts:[{text:sys+'\n\nStudent: '+q}]},...doubtHistory.slice(1)];
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:doubtHistory,generationConfig:{maxOutputTokens:800,temperature:0.4}})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error?.message||'Error');
+    const rParts=data.candidates?.[0]?.content?.parts||[];
+    const rText=((rParts.find(p=>!p.thought&&p.text)||rParts[0])||{}).text||'Sorry, I could not answer that.';
+    
+    typingEl.remove();
+    const aiMsg=document.createElement('div');aiMsg.className='msg msg-ai';
+    aiMsg.innerHTML=rText.trim().replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
+    msgs.appendChild(aiMsg);msgs.scrollTop=msgs.scrollHeight;
+    doubtHistory.push({role:'model',parts:[{text:rText}]});
+  }catch(e){
+    typingEl.remove();
+    const errMsg=document.createElement('div');errMsg.className='msg msg-ai';errMsg.style.color='#ef4444';
+    errMsg.textContent='Error: '+e.message;msgs.appendChild(errMsg);
+  }
+}
+
+document.getElementById('doubt-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('doubt-overlay'))document.getElementById('doubt-overlay').classList.remove('show');});
+document.getElementById('doubt-close').addEventListener('click',()=>document.getElementById('doubt-overlay').classList.remove('show'));
+document.getElementById('doubt-send').addEventListener('click',sendDoubt);
+document.getElementById('doubt-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendDoubt();}});
+document.getElementById('doubt-btn').addEventListener('click',()=>openDoubtChat());
+
+// ══════════════════════════════════════
+// WEAK TOPIC NOTES
+// ══════════════════════════════════════
+function openNotes(preselectedTopic){
+  const overlay=document.getElementById('notes-overlay');
+  const sel=document.getElementById('notes-topic-sel');
+  sel.innerHTML='';
+  
+  // Get all topics from current deck or all decks
+  const topics=new Set(['General']);
+  if(curDeckId){
+    const deck=getDeck(curDeckId);
+    if(deck)deck.cards.forEach(c=>c.topic&&topics.add(c.topic));
+  } else {
+    getIdx().forEach(it=>{const d=getDeck(it.id);if(d)d.cards.forEach(c=>c.topic&&topics.add(c.topic));});
+  }
+  [...topics].forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});
+  if(preselectedTopic&&topics.has(preselectedTopic))sel.value=preselectedTopic;
+  
+  // Load existing note for selected topic
+  loadNoteForTopic(sel.value);
+  renderSavedNotes();
+  overlay.classList.add('show');
+  document.getElementById('notes-textarea').focus();
+}
+
+function loadNoteForTopic(topic){
+  const notes=getNotes();
+  const note=notes.find(n=>n.topic===topic);
+  document.getElementById('notes-textarea').value=note?note.text:'';
+}
+
+document.getElementById('notes-topic-sel').addEventListener('change',e=>loadNoteForTopic(e.target.value));
+
+document.getElementById('notes-save').addEventListener('click',()=>{
+  const topic=document.getElementById('notes-topic-sel').value;
+  const text=document.getElementById('notes-textarea').value.trim();
+  if(!text){showToast('Write something first!','error');return;}
+  const notes=getNotes().filter(n=>n.topic!==topic);
+  notes.unshift({topic,text,date:new Date().toLocaleDateString()});
+  setNotes(notes);
+  const count=notes.length;if(count>=3)earnBadge('notes_writer');
+  showToast('📝 Note saved!');renderSavedNotes();
+});
+
+document.getElementById('notes-clear').addEventListener('click',()=>{
+  document.getElementById('notes-textarea').value='';
+});
+
+document.getElementById('notes-ask-ai').addEventListener('click',()=>{
+  const topic=document.getElementById('notes-topic-sel').value;
+  const text=document.getElementById('notes-textarea').value;
+  document.getElementById('notes-overlay').classList.remove('show');
+  // Create a virtual card for the doubt
+  const virtualCard={topic,q:`Notes on ${topic}`,a:text||'(no notes yet)'};
+  openDoubtChat(virtualCard);
+});
+
+function renderSavedNotes(){
+  const notes=getNotes();
+  const el=document.getElementById('saved-notes-list');
+  if(!notes.length){el.innerHTML='<div style="font-size:.8rem;color:var(--ink-3);font-family:\'DM Mono\',monospace">No notes yet. Write your first note above!</div>';return;}
+  el.innerHTML='';
+  notes.forEach((n,i)=>{
+    const d=document.createElement('div');d.className='saved-note';
+    d.innerHTML=`<div class="saved-note-topic">${n.topic} · ${n.date}</div>
+      <div class="saved-note-text">${n.text.slice(0,300)}${n.text.length>300?'…':''}</div>
+      <div class="saved-note-actions">
+        <button class="saved-note-del" data-i="${i}">🗑 Delete</button>
+        <button class="nb" data-topic="${n.topic}" data-text="${encodeURIComponent(n.text)}" style="font-size:.6rem;padding:.25rem .6rem;min-height:auto">🤖 Ask AI</button>
+      </div>`;
+    d.querySelector('.saved-note-del').addEventListener('click',()=>{const ns=getNotes();ns.splice(i,1);setNotes(ns);renderSavedNotes();});
+    d.querySelector('.nb').addEventListener('click',()=>{
+      document.getElementById('notes-overlay').classList.remove('show');
+      openDoubtChat({topic:n.topic,q:`Notes on ${n.topic}`,a:decodeURIComponent(d.querySelector('.nb').dataset.text)});
+    });
+    el.appendChild(d);
+  });
+}
+
+document.getElementById('notes-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('notes-overlay'))document.getElementById('notes-overlay').classList.remove('show');});
+document.getElementById('notes-close').addEventListener('click',()=>document.getElementById('notes-overlay').classList.remove('show'));
+document.getElementById('cv-notes').addEventListener('click',()=>{
+  const card=filteredCards[cardIdx];
+  openNotes(card?.topic);
+});
+
+// ══════════════════════════════════════
+// AI SUMMARY FEATURE
+// ══════════════════════════════════════
+async function generateSummary(){
+  const overlay=document.getElementById('summary-overlay');
+  const body=document.getElementById('summary-body');
+  overlay.classList.add('show');
+  body.innerHTML='<div class="explain-loading"><div class="explain-spinner"></div>Generating AI summary of this deck…</div>';
+  const key=getKey();
+  if(!key){body.innerHTML='<div class="explain-body">No API key set.</div>';return;}
+  if(!curDeckId){body.innerHTML='<div class="explain-body">No deck loaded.</div>';return;}
+  
+  const deck=getDeck(curDeckId);
+  const topics=[...new Set(deck.cards.map(c=>c.topic).filter(Boolean))];
+  const highPrio=deck.cards.filter(c=>c.priority==='high').slice(0,5);
+  
+  try{
+    const prompt=`I am studying for ${deck.meta.exam||'my exam'}. I have flashcards on these topics: ${topics.join(', ')}.
+    
+Here are the most important high-priority questions from my deck:
+${highPrio.map((c,i)=>`${i+1}. Q: ${c.q}\n   A: ${c.a.replace(/<[^>]+>/g,'')}`).join('\n\n')}
+
+Please provide a structured study summary:
+1. Key concepts I must know (top 5)
+2. Likely exam questions (top 3)
+3. Most common mistakes to avoid
+4. Quick memory tips / mnemonics if any
+
+Keep it concise, exam-focused, and actionable. Use <strong>tags</strong> for emphasis.`;
+    
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1200,temperature:0.3}})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error?.message||'Error');
+    const rParts=data.candidates?.[0]?.content?.parts||[];
+    const rText=((rParts.find(p=>!p.thought&&p.text)||rParts[0])||{}).text||'';
+    body.innerHTML=`<div class="explain-body">${rText.trim().replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div>`;
+  }catch(e){body.innerHTML=`<div class="explain-body" style="color:#ef4444">Error: ${e.message}</div>`;}
+}
+
+document.getElementById('cv-summary').addEventListener('click',generateSummary);
+document.getElementById('summary-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('summary-overlay'))document.getElementById('summary-overlay').classList.remove('show');});
+document.getElementById('summary-close').addEventListener('click',()=>document.getElementById('summary-overlay').classList.remove('show'));
+
+// ══════════════════════════════════════
+// FOCUS TIMER
+// ══════════════════════════════════════
+function openTimer(){
+  document.getElementById('timer-overlay').classList.add('show');
+  updateTimerDisplay();
+  updateTimerStats();
+}
+
+function setTimerDuration(mins){
+  if(timerRunning)return;
+  timerTotalSeconds=mins*60;timerSecondsLeft=timerTotalSeconds;
+  document.querySelectorAll('.timer-preset').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.mins)===mins));
+  document.getElementById('timer-label').textContent=mins<=10?'Break 🌿':'Study Session 📚';
+  updateTimerDisplay();updateTimerRing();
+}
+
+document.querySelectorAll('.timer-preset').forEach(b=>b.addEventListener('click',()=>setTimerDuration(parseInt(b.dataset.mins))));
+
+document.getElementById('timer-start').addEventListener('click',()=>{
+  if(timerRunning){
+    clearInterval(timerInterval);timerRunning=false;
+    document.getElementById('timer-start').textContent='▶ Resume';
+  } else {
+    timerRunning=true;
+    document.getElementById('timer-start').textContent='⏸ Pause';
+    timerInterval=setInterval(()=>{
+      timerSecondsLeft--;
+      if(timerSecondsLeft<=0){
+        clearInterval(timerInterval);timerRunning=false;
+        document.getElementById('timer-start').textContent='▶ Start';
+        // Record session
+        const sessions=$.get('fg:timer_sessions',[]);
+        const today=new Date().toISOString().slice(0,10);
+        sessions.push({date:today,mins:Math.round(timerTotalSeconds/60)});
+        $.set('fg:timer_sessions',sessions);
+        const totalMins=sessions.filter(s=>s.date===today).reduce((a,b)=>a+b.mins,0);
+        if(totalMins>=60)earnBadge('focus_1h');
+        showToast('⏱ Session complete! Great work!','success');
+        updateTimerStats();
+        timerSecondsLeft=timerTotalSeconds;
+      }
+      updateTimerDisplay();updateTimerRing();
+    },1000);
+  }
+});
+
+document.getElementById('timer-reset').addEventListener('click',()=>{
+  clearInterval(timerInterval);timerRunning=false;
+  timerSecondsLeft=timerTotalSeconds;
+  document.getElementById('timer-start').textContent='▶ Start';
+  updateTimerDisplay();updateTimerRing();
+});
+
+function updateTimerDisplay(){
+  const m=Math.floor(timerSecondsLeft/60),s=timerSecondsLeft%60;
+  document.getElementById('timer-display').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function updateTimerRing(){
+  const prog=document.getElementById('timer-ring-prog');
+  const circumference=326.7;
+  const pct=timerSecondsLeft/timerTotalSeconds;
+  prog.style.strokeDashoffset=circumference*(1-pct);
+}
+
+function updateTimerStats(){
+  const sessions=$.get('fg:timer_sessions',[]);
+  const today=new Date().toISOString().slice(0,10);
+  const todaySessions=sessions.filter(s=>s.date===today);
+  document.getElementById('timer-sessions-count').textContent=todaySessions.length;
+  document.getElementById('timer-total-mins').textContent=todaySessions.reduce((a,b)=>a+b.mins,0);
+}
+
+document.getElementById('timer-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('timer-overlay'))document.getElementById('timer-overlay').classList.remove('show');});
+document.getElementById('timer-close').addEventListener('click',()=>document.getElementById('timer-overlay').classList.remove('show'));
 
 // ── VOICE MODE ──
 function speakCard(){
@@ -472,6 +823,7 @@ function loadViewer(meta,cards){
   buildSidebar(cards);updateCard();showScreen('cards');renderCountdown();
   updateStreak();renderStreakNav();
 }
+
 function buildSidebar(cards){
   const st=document.getElementById('sb-topics');const sc=document.getElementById('sb-chapters');
   st.innerHTML='';sc.innerHTML='';
@@ -530,6 +882,26 @@ function buildSidebar(cards){
       const tc=allCards.filter(c=>c.topic===t).length;
       const b=mkBtn(t,tc,false);b.addEventListener('click',()=>{deact();b.classList.add('active');setFil(c=>c.topic===t);});st.appendChild(b);
     });
+  }
+
+  // Weak topics in sidebar (from ratings)
+  if(curDeckId){
+    const mdata=computeMastery();
+    const weakSpots=Object.entries(mdata)
+      .filter(([,d])=>d.known+d.review>=2)
+      .map(([t,d])=>({t,pct:Math.round(d.known/(d.known+d.review)*100)}))
+      .filter(w=>w.pct<50)
+      .sort((a,b)=>a.pct-b.pct).slice(0,5);
+    if(weakSpots.length){
+      const hdr=document.getElementById('weak-topics-hdr');hdr.style.display='';
+      const swt=document.getElementById('sb-weak-topics');swt.innerHTML='';
+      weakSpots.forEach(ws=>{
+        const b=document.createElement('button');b.className='sbpill weak-pill';
+        b.innerHTML=`<span>⚠ ${ws.t}</span><span class="sb-cnt" style="color:#ef4444">${ws.pct}%</span>`;
+        b.addEventListener('click',()=>{deact();b.classList.add('active');setFil(c=>c.topic===ws.t);});
+        swt.appendChild(b);
+      });
+    }
   }
 }
 function closeMob(){if(window.innerWidth<=860){document.getElementById('sidebar').classList.remove('open');sidebarOpen=false;}}
@@ -598,17 +970,15 @@ document.getElementById('shuffle-btn').addEventListener('click',()=>{
 document.getElementById('explain-btn').addEventListener('click',explainCard);
 document.getElementById('voice-btn').addEventListener('click',speakCard);
 document.getElementById('cv-back').addEventListener('click',()=>{showScreen('upload');renderLibrary();});
-document.getElementById('cv-new').addEventListener('click',()=>{pdfFile=null;pdfInp.value='';fpill.classList.remove('show');genBtn.disabled=true;showScreen('upload');renderLibrary();});
+document.getElementById('cv-new').addEventListener('click',()=>{pdfFiles=[];renderFileList();genBtn.disabled=true;showScreen('upload');renderLibrary();});
 document.getElementById('cv-dash').addEventListener('click',()=>{showScreen('dashboard');renderDash();});
 document.getElementById('sb-toggle').addEventListener('click',()=>{sidebarOpen=!sidebarOpen;document.getElementById('sidebar').classList.toggle('open',sidebarOpen);});
 
-// ── QUIZ MODE — opens quiz.html ──
+// ── QUIZ MODE ──
 document.getElementById('cv-quiz').addEventListener('click',()=>{
   if(allCards.length<4){showToast('Need at least 4 cards to start a quiz','error');return;}
-  // Store quiz data in localStorage for quiz.html to read
   localStorage.setItem('fg:quiz_deck_id', curDeckId||'');
   localStorage.setItem('fg:quiz_all_cards', JSON.stringify(allCards));
-  // Open quiz in same window
   window.location.href='quiz.html';
 });
 
@@ -679,7 +1049,28 @@ function renderDash(){
     .map(([t,d])=>({t,pct:Math.round(d.known/(d.known+d.review)*100),ch:d.chapter}))
     .sort((a,b)=>a.pct-b.pct).slice(0,5);
   if(!weakSpots.length){wl.innerHTML='<div style="color:var(--ink-2);font-size:.85rem">Rate cards while studying to identify weak spots!</div>';}
-  else{wl.innerHTML='';weakSpots.forEach(ws=>{const el=document.createElement('div');el.className='weak-item';el.innerHTML=`<div><div class="wi-topic">${ws.t}</div><div style="font-size:.68rem;color:var(--ink-3);font-family:'DM Mono',monospace;margin-top:.15rem">${ws.ch||''}</div></div><div class="wi-pct">${ws.pct}% known</div><button class="wi-btn" data-topic="${ws.t}">+ Generate 5 More</button>`;el.querySelector('.wi-btn').addEventListener('click',()=>generateWeakCards(ws.t,ws.ch));wl.appendChild(el);});}
+  else{
+    wl.innerHTML='';
+    weakSpots.forEach(ws=>{
+      const el=document.createElement('div');el.className='weak-item';
+      el.innerHTML=`<div><div class="wi-topic">${ws.t}</div><div style="font-size:.68rem;color:var(--ink-3);font-family:'DM Mono',monospace;margin-top:.15rem">${ws.ch||''}</div></div>
+        <div class="wi-pct">${ws.pct}% known</div>
+        <button class="wi-btn" data-topic="${ws.t}">+ Generate 5 More</button>
+        <button class="wi-notes-btn" data-topic="${ws.t}">📝 Take Notes</button>
+        <button class="wi-notes-btn" data-topic="${ws.t}" data-ask="1">🤖 Ask AI</button>`;
+      el.querySelector('.wi-btn').addEventListener('click',()=>generateWeakCards(ws.t,ws.ch));
+      el.querySelectorAll('.wi-notes-btn').forEach(b=>{
+        b.addEventListener('click',()=>{
+          if(b.dataset.ask){
+            openDoubtChat({topic:ws.t,q:'Help me understand '+ws.t,a:'I am weak in this topic'});
+          } else {
+            openNotes(ws.t);
+          }
+        });
+      });
+      wl.appendChild(el);
+    });
+  }
 }
 
 async function generateWeakCards(topic,chapter){
@@ -765,7 +1156,7 @@ function showToast(msg,type='success'){
   if(!getKey()){showScreen('apikey');return;}
   renderLibrary();renderStreakNav();
 
-  // ── Handle return navigation from quiz.html ──
+  // Handle return navigation from quiz.html
   const params=new URLSearchParams(window.location.search);
   const ret=params.get('return');
   const retDeckId=localStorage.getItem('fg:quiz_deck_id')||null;
@@ -777,9 +1168,7 @@ function showToast(msg,type='success'){
     if(deck){
       curDeckId=retDeckId;
       loadViewer(deck.meta,deck.cards);
-      // Clean URL without reload
       history.replaceState(null,'',window.location.pathname);
-      // If coming back from a finished quiz, show a toast
       if(ret==='quiz-done'){
         const lastScore=$.get('fg:last_quiz_score',null);
         if(lastScore) showToast('Quiz done — '+lastScore.score+'/'+lastScore.total+' correct ('+lastScore.pct+'%)','info');
