@@ -1,192 +1,202 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="aurora">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>FlashGen — Quiz</title>
-<meta name="theme-color" content="#0a0c17">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="quiz.css">
 </head>
 <body>
 
-<!-- ═══ HUD (hidden until quiz starts) ══════════════ -->
+<!-- ═══ THEME PANEL (slide-in from right) ════════════ -->
+<div class="theme-overlay" id="theme-overlay"></div>
+<aside class="theme-panel" id="theme-panel">
+  <div class="tp-header">
+    <span class="tp-title">Theme</span>
+    <button class="tp-close" id="tp-close">✕</button>
+  </div>
+  <div class="tp-grid">
+    <button class="tsw" data-t="aurora"  title="Aurora">🌌 Aurora</button>
+    <button class="tsw" data-t="neon"    title="Neon">🟣 Neon</button>
+    <button class="tsw" data-t="parchment" title="Parchment">📜 Parchment</button>
+    <button class="tsw" data-t="sakura"  title="Sakura">🌸 Sakura</button>
+    <button class="tsw" data-t="ocean"   title="Ocean">🌊 Ocean</button>
+    <button class="tsw" data-t="forest"  title="Forest">🌿 Forest</button>
+    <button class="tsw" data-t="ember"   title="Ember">🔥 Ember</button>
+    <button class="tsw" data-t="slate"   title="Slate">🪨 Slate</button>
+  </div>
+</aside>
+
+<!-- ═══ HUD ═══════════════════════════════════════════ -->
 <header class="hud hidden" id="hud">
   <div class="hud-left">
-    <span class="brand">FlashGen</span>
+    <a href="index.html" class="brand">FlashGen</a>
     <span class="mode-badge" id="mode-badge"></span>
   </div>
   <div class="hud-center">
-    <div class="top-prog">
-      <div class="top-prog-fill" id="top-fill"></div>
-    </div>
+    <div class="top-prog"><div class="top-prog-fill" id="top-fill"></div></div>
     <div class="hud-meta">
       <span id="q-counter">1 / 10</span>
-      <span class="hud-sep">·</span>
+      <span class="sep">·</span>
       <span id="pts-display">0</span> pts
-      <span class="hud-sep">·</span>
+      <span class="sep">·</span>
       <span class="streak-display hidden" id="streak-display">
-        🔥 <span id="streak-num">0</span>
-        <span class="streak-mult" id="streak-mult"></span>
+        🔥<span id="streak-num">0</span><span class="streak-mult" id="streak-mult"></span>
       </span>
     </div>
   </div>
-  <button class="exit-btn" id="exit-btn">✕ Exit</button>
+  <div class="hud-right">
+    <button class="theme-toggle-btn" id="theme-toggle" title="Change theme">🎨</button>
+    <button class="exit-btn" id="exit-btn">✕</button>
+  </div>
 </header>
 
-<!-- ═══ START SCREEN ════════════════════════════════ -->
+<!-- ═══ START SCREEN ══════════════════════════════════ -->
 <section id="start-screen">
-  <div class="start-inner" id="start-card">
-    <div class="start-header">
-      <div class="start-logo">FlashGen</div>
-      <div class="start-sub">Quiz Mode</div>
+  <div class="start-wrap">
+
+    <!-- Header row -->
+    <div class="start-nav">
+      <span class="brand">FlashGen</span>
+      <button class="theme-toggle-btn" id="theme-toggle-start" title="Change theme">🎨 Theme</button>
     </div>
 
-    <div class="deck-info">
-      <div class="deck-name" id="deck-title">Your deck</div>
-      <div class="deck-count" id="deck-count">— cards</div>
-    </div>
+    <h1 class="start-title">Quiz Mode</h1>
 
-    <!-- Difficulty selector -->
-    <div class="diff-section">
-      <div class="diff-label">Select difficulty</div>
-      <div class="diff-grid">
-
-        <div class="diff-card" data-mode="easy">
-          <div class="diff-top">
-            <span class="diff-emoji">🟢</span>
-            <span class="diff-name">Easy</span>
-          </div>
-          <ul class="diff-features">
-            <li>3 answer choices</li>
-            <li>45 s per question</li>
-            <li>Hints available</li>
-            <li>True / False rounds</li>
-          </ul>
-          <div class="diff-score">×2.5 max streak</div>
-        </div>
-
-        <div class="diff-card" data-mode="medium">
-          <div class="diff-top">
-            <span class="diff-emoji">🟡</span>
-            <span class="diff-name">Medium</span>
-          </div>
-          <ul class="diff-features">
-            <li>4 answer choices</li>
-            <li>30 s per question</li>
-            <li>Same-chapter traps</li>
-            <li>No hints</li>
-          </ul>
-          <div class="diff-score">×3 max streak</div>
-        </div>
-
-        <div class="diff-card" data-mode="hard">
-          <div class="diff-top">
-            <span class="diff-emoji">🔴</span>
-            <span class="diff-name">Hard</span>
-          </div>
-          <ul class="diff-features">
-            <li>4 choices, same-topic traps</li>
-            <li>15 s per question</li>
-            <li>Reverse questions</li>
-            <li>High-priority cards</li>
-          </ul>
-          <div class="diff-score">×4 max streak</div>
-        </div>
-
+    <div class="deck-pill" id="start-card">
+      <span class="deck-icon">📚</span>
+      <div>
+        <div class="deck-name" id="deck-title">Your deck</div>
+        <div class="deck-sub" id="deck-count">— cards</div>
       </div>
     </div>
 
-    <!-- Question count -->
-    <div class="count-section">
-      <div class="count-label">How many questions?</div>
-      <div class="count-row">
-        <button class="qc-btn" data-n="5">5</button>
-        <button class="qc-btn active" data-n="10">10</button>
-        <button class="qc-btn" data-n="15">15</button>
-        <button class="qc-btn" data-n="20">20</button>
-      </div>
+    <!-- Difficulty -->
+    <div class="section-label">Choose difficulty</div>
+    <div class="diff-grid">
+
+      <button class="diff-card" data-mode="easy">
+        <div class="diff-head">
+          <span class="diff-dot" style="background:#22c55e"></span>
+          <span class="diff-name">Easy</span>
+          <span class="diff-mult">2.5× streak</span>
+        </div>
+        <ul class="diff-list">
+          <li>3 choices per question</li>
+          <li>45 s timer</li>
+          <li>Hints available (press H)</li>
+          <li>True / False rounds</li>
+          <li>All cards included</li>
+        </ul>
+      </button>
+
+      <button class="diff-card" data-mode="medium">
+        <div class="diff-head">
+          <span class="diff-dot" style="background:#f59e0b"></span>
+          <span class="diff-name">Medium</span>
+          <span class="diff-mult">3× streak</span>
+        </div>
+        <ul class="diff-list">
+          <li>4 choices per question</li>
+          <li>30 s timer</li>
+          <li>Same-chapter distractors</li>
+          <li>MCQ only, no hints</li>
+          <li>All cards included</li>
+        </ul>
+      </button>
+
+      <button class="diff-card" data-mode="hard">
+        <div class="diff-head">
+          <span class="diff-dot" style="background:#ef4444"></span>
+          <span class="diff-name">Hard</span>
+          <span class="diff-mult">4× streak</span>
+        </div>
+        <ul class="diff-list">
+          <li>4 choices per question</li>
+          <li>15 s timer</li>
+          <li>Same-topic traps</li>
+          <li>Reverse questions included</li>
+          <li>High-priority cards first</li>
+        </ul>
+      </button>
+
     </div>
 
-    <button class="start-btn" id="start-btn" disabled>
-      Select a difficulty to start
-    </button>
-  </div>
+    <!-- Count -->
+    <div class="section-label" style="margin-top:1.75rem">Number of questions</div>
+    <div class="count-row">
+      <button class="qc-btn" data-n="5">5</button>
+      <button class="qc-btn active" data-n="10">10</button>
+      <button class="qc-btn" data-n="15">15</button>
+      <button class="qc-btn" data-n="20">20</button>
+    </div>
 
-  <div class="no-cards hidden" id="no-cards">
-    <div class="start-inner" style="text-align:center">
-      <div style="font-size:3rem;margin-bottom:1rem">📭</div>
-      <div class="start-sub" style="margin-bottom:.5rem">No cards available</div>
-      <p style="color:var(--ink-2);margin-bottom:1.5rem;line-height:1.7">Need at least 4 flashcards. Go back to open a deck first.</p>
-      <button class="start-btn" onclick="location.href='index.html'">← Back to FlashGen</button>
+    <button class="start-btn" id="start-btn" disabled>Select a difficulty above</button>
+
+    <div class="no-cards hidden" id="no-cards">
+      <p>No deck loaded — <a href="index.html">go back to FlashGen</a> and open a deck first.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══ ACTIVE QUIZ ══════════════════════════════════ -->
+<!-- ═══ ACTIVE QUIZ ════════════════════════════════════ -->
 <section class="hidden" id="quiz-section">
   <div class="quiz-wrap">
 
-    <!-- Timer row -->
     <div class="timer-row">
-      <div class="q-num-label" id="q-num">Q1</div>
-      <div class="timer-track">
-        <div class="timer-fill" id="timer-fill"></div>
-      </div>
-      <div class="timer-num" id="timer-num">30</div>
-      <div class="pts-possible" id="pts-possible">+350</div>
+      <span class="q-num" id="q-num">Q1</span>
+      <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
+      <span class="timer-num" id="timer-num">30</span>
+      <span class="pts-pill" id="pts-possible">+350</span>
     </div>
 
-    <!-- Question card -->
     <div class="q-card" id="q-card">
-      <div class="q-card-top">
+      <div class="q-card-meta">
         <span class="q-tag" id="q-tag">🧠 Recall</span>
-        <span class="q-meta" id="q-meta"></span>
+        <span class="q-topic" id="q-meta"></span>
       </div>
-      <div class="fmt-label" id="fmt-label" style="display:none"></div>
-      <!-- True/False: shows the alleged answer -->
+      <div class="fmt-hint" id="fmt-label" style="display:none"></div>
       <div class="tf-block" id="tf-block" style="display:none">
+        <div class="tf-label">Proposed answer:</div>
         <div class="tf-ans" id="tf-ans"></div>
       </div>
       <div class="q-text" id="q-text"></div>
     </div>
 
-    <!-- Options -->
     <div class="opts-grid" id="opts-grid"></div>
 
-    <!-- Hint -->
-    <button class="hint-btn" id="hint-btn" style="display:none">💡 Hint</button>
-
-    <!-- Feedback -->
-    <div class="feedback" id="feedback">
-      <div class="fb-icon" id="fb-icon"></div>
-      <div class="fb-text" id="fb-text"></div>
-      <div class="fb-pts" id="fb-pts"></div>
+    <div class="quiz-footer">
+      <button class="hint-btn" id="hint-btn" style="display:none">💡 Hint (H)</button>
+      <div class="kb-hint"><kbd>A</kbd><kbd>B</kbd><kbd>C</kbd><kbd>D</kbd> · <kbd>Enter</kbd> next · <kbd>H</kbd> hint</div>
     </div>
 
-    <!-- Next -->
+    <div class="feedback" id="feedback">
+      <span class="fb-icon" id="fb-icon"></span>
+      <span class="fb-text" id="fb-text"></span>
+      <span class="fb-pts" id="fb-pts"></span>
+    </div>
+
     <div class="next-wrap hidden" id="next-wrap">
       <button class="next-btn" id="next-btn">
-        <span id="next-label">Next</span>
-        <span>→</span>
+        <span id="next-label">Next</span> →
       </button>
     </div>
 
-    <div class="kb-hint"><kbd>A</kbd><kbd>B</kbd><kbd>C</kbd><kbd>D</kbd> to answer · <kbd>Enter</kbd> to advance · <kbd>H</kbd> for hint</div>
   </div>
 </section>
 
-<!-- ═══ RESULTS ══════════════════════════════════════ -->
+<!-- ═══ RESULTS ════════════════════════════════════════ -->
 <section class="hidden" id="results-screen">
   <div class="results-wrap">
-
     <div class="res-hero">
       <div class="res-trophy" id="res-trophy">🏆</div>
       <div class="res-score" id="res-score">—</div>
-      <div class="res-pct" id="res-pct">0% accuracy</div>
-      <div class="res-grade" id="res-grade">Well done!</div>
-      <div class="res-points" id="res-points">0 pts</div>
-      <div class="mode-badge res-mode-badge" id="res-mode-badge"></div>
+      <div class="res-pct" id="res-pct"></div>
+      <div class="res-grade" id="res-grade"></div>
+      <div class="res-pts" id="res-points"></div>
+      <span class="mode-badge" id="res-mode-badge"></span>
     </div>
 
     <div class="res-stats" id="res-stats"></div>
@@ -195,8 +205,8 @@
 
     <div class="res-actions">
       <button class="res-btn primary" id="retry-btn">🔄 Try Again</button>
-      <button class="res-btn secondary" id="back-btn">← Back to Cards</button>
-      <button class="res-btn secondary" id="stats-btn">📊 Dashboard</button>
+      <button class="res-btn" id="back-btn">← Cards</button>
+      <button class="res-btn" id="stats-btn">📊 Dashboard</button>
     </div>
   </div>
 </section>
