@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FlashGen">
 <meta name="theme-color" content="#07091a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -53,6 +55,8 @@
       </div>
       <div class="offline-dot" id="offline-dot"></div>
       <button class="nb" id="btn-timer">⏱ Timer</button>
+      <button class="nb" id="btn-shop">🛍 Shop</button>
+      <button class="nb" id="btn-rooms">👥 Study Room</button>
       <button class="nb" id="btn-dash">📊 Dashboard</button>
       <button class="nb" id="btn-lib">📚 Library</button>
       <button class="nb" id="btn-key">🔑 Key</button>
@@ -198,7 +202,10 @@
     <div class="nav-actions">
       <button class="nb sb-toggle" id="sb-toggle">🏷 Topics</button>
       <button class="nb" id="cv-back">← Library</button>
-      <button class="nb" id="cv-quiz">🎯 Quiz Mode</button>
+      <button class="nb" id="cv-quiz">🎯 Quiz</button>
+      <button class="nb" id="cv-exam-sim">📝 Exam Sim</button>
+      <button class="nb" id="cv-predict">🔮 Predict</button>
+      <button class="nb" id="cv-mindmap">🗺 Mind Map</button>
       <button class="nb" id="cv-notes">📝 Notes</button>
       <button class="nb" id="cv-summary">📋 Summary</button>
       <button class="nb" id="cv-dash">📊 Stats</button>
@@ -407,6 +414,217 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="coins-popup" id="coins-popup">🪙 +<span id="coins-amount">0</span></div>
+
+<!-- ══ AI EXAM PREDICTOR MODAL ══ -->
+<div class="modal-overlay" id="predict-overlay">
+  <div class="explain-modal" style="max-width:600px">
+    <div class="explain-hdr">
+      <div class="explain-title">🔮 AI Exam Predictor</div>
+      <button class="explain-close" id="predict-close">✕ Close</button>
+    </div>
+    <div id="predict-body"></div>
+  </div>
+</div>
+
+<!-- ══ ADAPTIVE REWORD MODAL ══ -->
+<div class="modal-overlay" id="adaptive-overlay">
+  <div class="explain-modal" style="max-width:540px">
+    <div class="explain-hdr">
+      <div class="explain-title">🔄 Simplified Card</div>
+      <button class="explain-close" id="adaptive-close">✕ Close</button>
+    </div>
+    <div id="adaptive-body"></div>
+    <div style="padding:0 1.5rem 1.5rem;display:flex;gap:.75rem">
+      <button class="btn-full" id="adaptive-replace" style="display:none">Replace Original Card</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MIND MAP MODAL ══ -->
+<div class="modal-overlay" id="mindmap-overlay">
+  <div class="explain-modal" style="max-width:700px;max-height:90vh">
+    <div class="explain-hdr">
+      <div class="explain-title">🗺 Concept Mind Map</div>
+      <button class="explain-close" id="mindmap-close">✕ Close</button>
+    </div>
+    <div id="mindmap-body" style="overflow:auto;padding:1rem 1.5rem 1.5rem"></div>
+  </div>
+</div>
+
+<!-- ══ STUDY ROOM MODAL ══ -->
+<div class="modal-overlay" id="room-overlay">
+  <div class="explain-modal" style="max-width:560px">
+    <div class="explain-hdr">
+      <div class="explain-title">👥 Study Room</div>
+      <button class="explain-close" id="room-close">✕ Close</button>
+    </div>
+    <div id="room-body">
+      <div style="padding:1.5rem">
+        <div class="room-section">
+          <div class="explain-title" style="font-size:.9rem;margin-bottom:.75rem">Create a Room</div>
+          <p style="font-size:.8rem;color:var(--ink-2);margin-bottom:.75rem">Share your room code with friends studying the same deck. Everyone sees each other's progress live.</p>
+          <button class="btn-full" id="room-create-btn">🚀 Create New Room</button>
+        </div>
+        <div class="room-divider">or</div>
+        <div class="room-section">
+          <div class="explain-title" style="font-size:.9rem;margin-bottom:.75rem">Join a Room</div>
+          <input class="inp" type="text" id="room-code-input" placeholder="Enter 6-digit room code" maxlength="6" style="text-transform:uppercase;letter-spacing:.2em;font-family:'DM Mono',monospace;font-size:1.2rem;text-align:center"/>
+          <button class="btn-full" id="room-join-btn" style="margin-top:.75rem">Join Room →</button>
+        </div>
+        <div id="room-active" style="display:none">
+          <div class="room-code-display">
+            <div style="font-size:.7rem;color:var(--ink-2);margin-bottom:.3rem;font-family:'DM Mono',monospace">ROOM CODE</div>
+            <div id="room-code-show" style="font-size:2rem;font-weight:700;letter-spacing:.25em;color:var(--ac);font-family:'DM Mono',monospace"></div>
+            <button class="nb" id="room-copy-code" style="margin-top:.5rem;font-size:.7rem">📋 Copy Code</button>
+          </div>
+          <div class="room-members" id="room-members"></div>
+          <div class="room-feed" id="room-feed"></div>
+          <button class="nb" id="room-leave-btn" style="margin-top:1rem;width:100%;color:#ef4444;border-color:#ef4444">Leave Room</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REWARD SHOP MODAL ══ -->
+<div class="modal-overlay" id="shop-overlay">
+  <div class="explain-modal" style="max-width:560px">
+    <div class="explain-hdr">
+      <div class="explain-title">🛍 Reward Shop</div>
+      <button class="explain-close" id="shop-close">✕ Close</button>
+    </div>
+    <div id="shop-body">
+      <div style="padding:1.5rem">
+        <div class="shop-balance">
+          <span class="shop-coins-icon">🪙</span>
+          <span id="shop-coins-display">0</span>
+          <span style="font-size:.8rem;color:var(--ink-2);margin-left:.4rem">coins</span>
+          <span style="font-size:.7rem;color:var(--ink-3);margin-left:.75rem;font-family:'DM Mono',monospace">Rate cards & quiz to earn</span>
+        </div>
+        <div class="shop-grid" id="shop-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXAM SIMULATION MODAL ══ -->
+<div class="modal-overlay" id="examsim-overlay">
+  <div class="explain-modal" style="max-width:680px;max-height:95vh">
+    <div class="explain-hdr">
+      <div class="explain-title">📝 Exam Simulation</div>
+      <button class="explain-close" id="examsim-close">✕ Close</button>
+    </div>
+    <div id="examsim-body">
+      <!-- Setup screen -->
+      <div id="examsim-setup" style="padding:1.5rem">
+        <p style="font-size:.85rem;color:var(--ink-2);margin-bottom:1.25rem">Simulates a real exam environment — timed, negative marking, section-wise. No hints, no explanations until the end.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem">
+          <div>
+            <span class="lbl">Exam Pattern</span>
+            <select class="sel" id="sim-pattern">
+              <option value="jee">JEE Main (90 min, –¼ marking)</option>
+              <option value="neet">NEET (180 min, –1 marking)</option>
+              <option value="cbse">CBSE Board (180 min, no negative)</option>
+              <option value="upsc">UPSC (120 min, –⅓ marking)</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div>
+            <span class="lbl">Questions</span>
+            <select class="sel" id="sim-qcount">
+              <option value="10">10 questions</option>
+              <option value="20" selected>20 questions</option>
+              <option value="30">30 questions</option>
+              <option value="50">50 questions</option>
+            </select>
+          </div>
+          <div>
+            <span class="lbl">Time Limit (minutes)</span>
+            <input class="inp" type="number" id="sim-time" value="30" min="5" max="180"/>
+          </div>
+          <div>
+            <span class="lbl">Marks per correct</span>
+            <input class="inp" type="number" id="sim-marks" value="4" min="1" max="10"/>
+          </div>
+          <div>
+            <span class="lbl">Negative marking</span>
+            <input class="inp" type="number" id="sim-negative" value="-1" max="0" min="-5" step="0.25"/>
+          </div>
+        </div>
+        <button class="btn-full" id="examsim-start-btn">🚀 Start Exam Simulation</button>
+      </div>
+      <!-- Active exam -->
+      <div id="examsim-active" style="display:none;padding:1.25rem">
+        <div class="sim-hud">
+          <div class="sim-hud-item"><span id="sim-q-num">Q1/20</span></div>
+          <div class="sim-hud-item sim-timer-display" id="sim-timer-display">30:00</div>
+          <div class="sim-hud-item">Score: <strong id="sim-score-live">0</strong></div>
+          <div class="sim-hud-item" style="color:#f59e0b">Attempted: <strong id="sim-attempted">0</strong></div>
+        </div>
+        <div class="sim-progress-bar"><div id="sim-prog-fill" style="width:0%"></div></div>
+        <div class="sim-question" id="sim-question"></div>
+        <div class="sim-options" id="sim-options"></div>
+        <div class="sim-nav">
+          <button class="nb" id="sim-prev-btn">← Prev</button>
+          <button class="nb" id="sim-skip-btn" style="color:#f59e0b;border-color:#f59e0b">Skip →</button>
+          <button class="nb" id="sim-next-btn">Next →</button>
+          <button class="nb" id="sim-review-btn" style="color:#a78bfa;border-color:#a78bfa">📌 Review Later</button>
+          <button class="nb" id="sim-submit-btn" style="color:#ef4444;border-color:#ef4444;margin-left:auto">Submit Exam</button>
+        </div>
+        <div class="sim-palette" id="sim-palette"></div>
+      </div>
+      <!-- Results -->
+      <div id="examsim-results" style="display:none;padding:1.25rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ WRONG ANSWER EXPLAINER (from quiz) ══ -->
+<div class="modal-overlay" id="wrongexp-overlay">
+  <div class="explain-modal" style="max-width:540px">
+    <div class="explain-hdr">
+      <div class="explain-title">💡 Why Was I Wrong?</div>
+      <button class="explain-close" id="wrongexp-close">✕ Close</button>
+    </div>
+    <div id="wrongexp-body"></div>
+  </div>
+</div>
+
+<!-- ══ WHATSAPP/TELEGRAM BOT MODAL ══ -->
+<div class="modal-overlay" id="bot-overlay">
+  <div class="explain-modal" style="max-width:520px">
+    <div class="explain-hdr">
+      <div class="explain-title">📱 Daily Card Bot</div>
+      <button class="explain-close" id="bot-close">✕ Close</button>
+    </div>
+    <div id="bot-body" style="padding:1.5rem">
+      <p style="font-size:.85rem;color:var(--ink-2);margin-bottom:1.25rem;line-height:1.7">Get 5 flashcard questions delivered to you every morning on WhatsApp or Telegram. Answer in the chat — great for studying on the go!</p>
+      <div class="bot-options">
+        <div class="bot-card" id="bot-whatsapp">
+          <div class="bot-icon">💬</div>
+          <div class="bot-name">WhatsApp</div>
+          <div class="bot-desc">Share today's 5 cards to WhatsApp</div>
+          <button class="btn-full" id="bot-wa-btn" style="margin-top:.75rem">Open in WhatsApp →</button>
+        </div>
+        <div class="bot-card" id="bot-telegram">
+          <div class="bot-icon">✈️</div>
+          <div class="bot-name">Telegram</div>
+          <div class="bot-desc">Share today's 5 cards to Telegram</div>
+          <button class="btn-full" id="bot-tg-btn" style="margin-top:.75rem">Open in Telegram →</button>
+        </div>
+      </div>
+      <div class="bot-preview" id="bot-preview" style="margin-top:1.25rem">
+        <div style="font-size:.75rem;color:var(--ink-2);font-family:'DM Mono',monospace;margin-bottom:.5rem">PREVIEW (today's 5 cards)</div>
+        <div id="bot-cards-preview" style="font-size:.8rem;color:var(--ink);line-height:1.8;white-space:pre-wrap;font-family:'DM Mono',monospace;background:var(--surf);border:1px solid var(--br);border-radius:12px;padding:.85rem 1rem;max-height:200px;overflow-y:auto"></div>
+      </div>
+      <div style="margin-top:1rem;padding:.75rem;background:var(--surf);border-radius:10px;border:1px solid var(--br)">
+        <div style="font-size:.72rem;color:var(--ink-2);line-height:1.7">📅 <strong>Set a daily reminder:</strong> Schedule a recurring alarm at your preferred time and tap this button each morning to send that day's cards.</div>
+        <button class="nb" id="bot-alarm-btn" style="margin-top:.6rem;width:100%">⏰ Set Morning Reminder</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

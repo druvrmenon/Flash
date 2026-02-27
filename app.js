@@ -22,6 +22,13 @@ const BADGES=[
   {id:'multi_pdf',e:'📄',n:'Multi-PDF',d:'Upload multiple PDFs at once'},
   {id:'notes_writer',e:'📝',n:'Note Taker',d:'Write 3 topic notes'},
   {id:'focus_1h',e:'⏱',n:'Focused',d:'Complete 1 hour of study time'},
+  {id:'exam_sim',e:'📝',n:'Exam Ready',d:'Complete an exam simulation'},
+  {id:'perfect_sim',e:'🏆',n:'Simulator Pro',d:'Score 100% in exam simulation'},
+  {id:'room_joined',e:'👥',n:'Study Buddy',d:'Join a study room'},
+  {id:'predicted',e:'🔮',n:'Oracle',d:'Use the AI Exam Predictor'},
+  {id:'mindmapper',e:'🗺',n:'Mind Mapper',d:'Generate a concept mind map'},
+  {id:'shop_unlock',e:'🛍',n:'Shopper',d:'Unlock something from the shop'},
+  {id:'bot_sent',e:'📱',n:'Daily Grinder',d:'Send cards to WhatsApp/Telegram'},
 ];
 
 // ── STATE ──
@@ -31,6 +38,21 @@ let curDeckId=null, sidebarOpen=false, mchart=null;
 let mergingMode=false, mergeSelected=new Set();
 let doubtHistory=[], currentDoubtCard=null;
 let timerInterval=null, timerRunning=false, timerSecondsLeft=25*60, timerTotalSeconds=25*60;
+// Coins & Shop
+const getCoins=()=>$.get('fg:coins',0);
+const setCoins=n=>$.set('fg:coins',n);
+const getUnlocked=()=>$.get('fg:unlocked',[]);
+function earnCoins(n,reason=''){
+  const old=getCoins();setCoins(old+n);
+  const popup=document.getElementById('coins-popup');
+  document.getElementById('coins-amount').textContent=n;
+  popup.classList.add('show');setTimeout(()=>popup.classList.remove('show'),1800);
+}
+// Study Room state
+let roomCode=null, roomChannel=null, roomName='You', roomMembers={};
+// Exam Simulation state
+let simCards=[], simAnswers=[], simIdx=0, simTimer=null, simTimeLeft=0, simConfig={};
+let simReviewLater=new Set();
 
 // ── STORAGE ──
 const $={
@@ -126,6 +148,7 @@ function checkRateBadges(cardType){
   if(t>=50)earnBadge('rated_50');if(t>=100)earnBadge('rated_100');
   if(cardType==='formula'){const f=$.get('fg:formula_rated',0)+1;$.set('fg:formula_rated',f);if(f>=10)earnBadge('formula_10');}
   const sr=$.get('fg:sr_rated',0)+1;$.set('fg:sr_rated',sr);if(sr>=20)earnBadge('sr_streak');
+  earnCoins(2,'rated card');
 }
 
 // ── COUNTDOWN ──
@@ -162,6 +185,8 @@ document.getElementById('btn-key').addEventListener('click',()=>{document.getEle
 document.getElementById('btn-lib').addEventListener('click',()=>document.getElementById('lib-sec').scrollIntoView({behavior:'smooth'}));
 document.getElementById('btn-dash').addEventListener('click',()=>{showScreen('dashboard');renderDash();});
 document.getElementById('btn-timer').addEventListener('click',()=>openTimer());
+document.getElementById('btn-shop').addEventListener('click',()=>openShop());
+document.getElementById('btn-rooms').addEventListener('click',()=>openRoom());
 
 // ── TABS ──
 document.querySelectorAll('.tab').forEach(b=>{
@@ -981,6 +1006,9 @@ document.getElementById('cv-quiz').addEventListener('click',()=>{
   localStorage.setItem('fg:quiz_all_cards', JSON.stringify(allCards));
   window.location.href='quiz.html';
 });
+document.getElementById('cv-exam-sim').addEventListener('click',()=>openExamSim());
+document.getElementById('cv-predict').addEventListener('click',()=>openPredictor());
+document.getElementById('cv-mindmap').addEventListener('click',()=>openMindMap());
 
 // ── DASHBOARD ──
 function computeMastery(){
@@ -1178,3 +1206,789 @@ function showToast(msg,type='success'){
     showScreen('upload');
   }
 })();
+
+// ══════════════════════════════════════
+// FEATURE 1: AI EXAM PREDICTOR
+// ══════════════════════════════════════
+async function openPredictor(){
+  const overlay=document.getElementById('predict-overlay');
+  const body=document.getElementById('predict-body');
+  overlay.classList.add('show');
+  if(!curDeckId){body.innerHTML='<div class="explain-body">Open a deck first to use the predictor.</div>';return;}
+  body.innerHTML='<div class="explain-loading"><div class="explain-spinner"></div>Analysing your weak spots and predicting likely exam questions…</div>';
+  const key=getKey();
+  if(!key){body.innerHTML='<div class="explain-body">No API key set.</div>';return;}
+  earnBadge('predicted');
+
+  const deck=getDeck(curDeckId);
+  const res=getRes(curDeckId);
+  const mdata=computeMastery();
+  const weakTopics=Object.entries(mdata)
+    .filter(([,d])=>d.known+d.review>=1)
+    .map(([t,d])=>({t,pct:d.known+d.review?Math.round(d.known/(d.known+d.review)*100):50,total:d.total}))
+    .sort((a,b)=>a.pct-b.pct).slice(0,8);
+  const allTopics=[...new Set(deck.cards.map(c=>c.topic).filter(Boolean))];
+  const highPrio=deck.cards.filter(c=>c.priority==='high').map(c=>c.q).slice(0,8);
+
+  try{
+    const prompt=`You are a top ${deck.meta.exam||'exam'} paper setter with 20 years of experience.
+
+A student is studying for ${deck.meta.exam||'their exam'}. Based on their study data:
+
+WEAK TOPICS (sorted by lowest mastery first):
+${weakTopics.map(w=>`- ${w.t}: ${w.pct}% mastered`).join('\n')}
+
+ALL TOPICS COVERED:
+${allTopics.join(', ')}
+
+HIGH-PRIORITY QUESTIONS IN THEIR DECK:
+${highPrio.map((q,i)=>`${i+1}. ${q}`).join('\n')}
+
+Please provide a focused exam prediction:
+
+## 🎯 Top 5 Most Likely Exam Questions
+(Based on topic importance, frequency, and this student's weak areas)
+
+## ⚠️ Topics Most Likely to Trip This Student
+(3 specific areas where they're likely to lose marks)
+
+## 📋 Rapid Revision Checklist  
+(8 specific things to review in the last 24 hours before the exam)
+
+## 🔑 Most Frequently Tested Concepts
+(Top 5 concepts that appear in almost every ${deck.meta.exam} paper)
+
+Be specific, actionable, and exam-pattern-aware. Use <strong> for key terms.`;
+
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1800,temperature:0.4}})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error?.message||'Error');
+    const rParts=data.candidates?.[0]?.content?.parts||[];
+    const rText=((rParts.find(p=>!p.thought&&p.text)||rParts[0])||{}).text||'';
+    body.innerHTML=`<div class="explain-body">${rText.trim().replace(/##\s*/g,'<h3 style="font-size:.9rem;font-weight:600;color:var(--ac);margin:1rem 0 .4rem;font-family:\'Outfit\',sans-serif">').replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div>`;
+    earnCoins(10,'used predictor');
+    showToast('🔮 Exam prediction ready! +10 coins','info');
+  }catch(e){body.innerHTML=`<div class="explain-body" style="color:#ef4444">Error: ${e.message}</div>`;}
+}
+document.getElementById('predict-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('predict-overlay'))document.getElementById('predict-overlay').classList.remove('show');});
+document.getElementById('predict-close').addEventListener('click',()=>document.getElementById('predict-overlay').classList.remove('show'));
+
+// ══════════════════════════════════════
+// FEATURE 2: ADAPTIVE DIFFICULTY (reword wrong card)
+// ══════════════════════════════════════
+let adaptiveCard=null, adaptiveNewCard=null;
+async function openAdaptiveExplainer(card){
+  adaptiveCard=card;adaptiveNewCard=null;
+  const overlay=document.getElementById('adaptive-overlay');
+  const body=document.getElementById('adaptive-body');
+  document.getElementById('adaptive-replace').style.display='none';
+  overlay.classList.add('show');
+  body.innerHTML='<div class="explain-loading"><div class="explain-spinner"></div>Simplifying this card for better understanding…</div>';
+  const key=getKey();
+  if(!key){body.innerHTML='<div class="explain-body">No API key set.</div>';return;}
+
+  // Check if rated wrong multiple times
+  const wrongCount=$.get('fg:wrong:'+encodeURIComponent(card.q.slice(0,40)),0)+1;
+  $.set('fg:wrong:'+encodeURIComponent(card.q.slice(0,40)),wrongCount);
+
+  try{
+    const prompt=`A student keeps getting this flashcard WRONG (${wrongCount} time${wrongCount>1?'s':''}).
+
+ORIGINAL QUESTION: ${card.q.replace(/<[^>]+>/g,'')}
+ORIGINAL ANSWER: ${card.a.replace(/<[^>]+>/g,'')}
+TOPIC: ${card.topic||'General'}
+EXAM: ${curDeckMeta()?.exam||'CBSE'}
+
+Please:
+1. Explain WHY this concept is confusing and what common misconceptions students have
+2. Provide a SIMPLER reworded version of this question that builds understanding step by step
+3. Give a memorable analogy or mnemonic to lock this in
+4. Write a NEW simplified flashcard (JSON at the end) that's easier to understand but teaches the same concept
+
+Return your explanation first, then end with EXACTLY this JSON on its own line:
+{"q":"simplified question","a":"clearer answer with analogy","topic":"${card.topic||'General'}","type":"${card.type||'recall'}","priority":"high","chapter":"${card.chapter||'General'}"}
+
+Use <strong> for emphasis.`;
+
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1400,temperature:0.4}})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error?.message||'Error');
+    const rParts=data.candidates?.[0]?.content?.parts||[];
+    const rText=((rParts.find(p=>!p.thought&&p.text)||rParts[0])||{}).text||'';
+
+    // Try to extract the JSON card at the end
+    const jsonMatch=rText.match(/\{"q"[\s\S]*?"chapter"[^}]*\}/);
+    if(jsonMatch){
+      try{adaptiveNewCard=JSON.parse(jsonMatch[0]);}catch{}
+    }
+    const explanation=rText.replace(/\{"q"[\s\S]*?\}/,'').trim();
+    body.innerHTML=`<div class="explain-body">${explanation.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}
+    ${adaptiveNewCard?`<div style="margin-top:1.25rem;padding:.85rem;background:var(--surf);border:1px solid var(--ac);border-radius:12px"><div style="font-size:.65rem;color:var(--ac);font-family:'DM Mono',monospace;margin-bottom:.4rem">✨ SIMPLIFIED CARD</div><strong>${adaptiveNewCard.q}</strong><br><br>${adaptiveNewCard.a}</div>`:''}
+    </div>`;
+    if(adaptiveNewCard) document.getElementById('adaptive-replace').style.display='block';
+  }catch(e){body.innerHTML=`<div class="explain-body" style="color:#ef4444">Error: ${e.message}</div>`;}
+}
+
+document.getElementById('adaptive-replace').addEventListener('click',()=>{
+  if(!adaptiveNewCard||!curDeckId)return;
+  const deck=getDeck(curDeckId);
+  if(!deck)return;
+  const idx=deck.cards.findIndex(c=>c.q===adaptiveCard.q);
+  if(idx!==-1){deck.cards[idx]={...adaptiveNewCard,_simplified:true};setDeck(curDeckId,deck.meta,deck.cards);allCards=[...deck.cards];filteredCards=[...deck.cards];}
+  else{deck.cards.push({...adaptiveNewCard,_simplified:true});setDeck(curDeckId,deck.meta,deck.cards);allCards=[...deck.cards];filteredCards=[...deck.cards];}
+  document.getElementById('adaptive-overlay').classList.remove('show');
+  showToast('✓ Card simplified and replaced!');
+});
+document.getElementById('adaptive-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('adaptive-overlay'))document.getElementById('adaptive-overlay').classList.remove('show');});
+document.getElementById('adaptive-close').addEventListener('click',()=>document.getElementById('adaptive-overlay').classList.remove('show'));
+
+// Trigger adaptive on multiple wrong SR ratings
+const _origRateSR=window.rateSR;
+
+// ══════════════════════════════════════
+// FEATURE 3: WRONG ANSWER EXPLAINER (for quiz)
+// ══════════════════════════════════════
+async function openWrongExplainer(questionText, correctAnswer, yourAnswer, topic, exam){
+  const overlay=document.getElementById('wrongexp-overlay');
+  const body=document.getElementById('wrongexp-body');
+  overlay.classList.add('show');
+  body.innerHTML='<div class="explain-loading"><div class="explain-spinner"></div>Analysing your mistake…</div>';
+  const key=getKey();
+  if(!key){body.innerHTML='<div class="explain-body">No API key set.</div>';return;}
+  try{
+    const prompt=`A ${exam||'CBSE'} student got this question WRONG in a quiz.
+
+QUESTION: ${questionText}
+CORRECT ANSWER: ${correctAnswer}
+STUDENT'S ANSWER: ${yourAnswer||'(skipped/timed out)'}
+TOPIC: ${topic||'General'}
+
+Explain clearly:
+1. Why the correct answer is right (the underlying concept)
+2. Why the student's answer is wrong (the likely misconception)
+3. A simple trick or rule to never get this wrong again
+4. One similar question they should practise
+
+Keep it concise (under 200 words). Use <strong> for key points.`;
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:700,temperature:0.3}})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error?.message||'Error');
+    const rParts=data.candidates?.[0]?.content?.parts||[];
+    const rText=((rParts.find(p=>!p.thought&&p.text)||rParts[0])||{}).text||'';
+    body.innerHTML=`<div class="explain-body">${rText.trim().replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div>`;
+  }catch(e){body.innerHTML=`<div class="explain-body" style="color:#ef4444">Error: ${e.message}</div>`;}
+}
+// Expose globally for quiz.js to call
+window.openWrongExplainer=openWrongExplainer;
+document.getElementById('wrongexp-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('wrongexp-overlay'))document.getElementById('wrongexp-overlay').classList.remove('show');});
+document.getElementById('wrongexp-close').addEventListener('click',()=>document.getElementById('wrongexp-overlay').classList.remove('show'));
+
+// ══════════════════════════════════════
+// FEATURE 4: CONCEPT MIND MAP
+// ══════════════════════════════════════
+async function openMindMap(){
+  const overlay=document.getElementById('mindmap-overlay');
+  const body=document.getElementById('mindmap-body');
+  overlay.classList.add('show');
+  if(!curDeckId){body.innerHTML='<div class="explain-body">Open a deck first.</div>';return;}
+  body.innerHTML='<div class="explain-loading"><div class="explain-spinner"></div>Mapping concept connections…</div>';
+  const key=getKey();
+  if(!key){body.innerHTML='<div class="explain-body">No API key set.</div>';return;}
+  const deck=getDeck(curDeckId);
+  const topics=[...new Set(deck.cards.map(c=>c.topic).filter(Boolean))].slice(0,15);
+  const cards=deck.cards.slice(0,30).map(c=>({q:c.q.replace(/<[^>]+>/g,'').slice(0,80),topic:c.topic||'General'}));
+  earnBadge('mindmapper');
+
+  try{
+    const prompt=`Generate a concept mind map structure for these flashcard topics: ${topics.join(', ')}
+
+Based on these questions:
+${cards.map(c=>`- [${c.topic}] ${c.q}`).join('\n')}
+
+Return ONLY a JSON object with this exact structure:
+{
+  "center": "Main Subject Name",
+  "branches": [
+    {
+      "label": "Branch Topic",
+      "color": "#hexcolor",
+      "children": ["subtopic 1", "subtopic 2", "subtopic 3"]
+    }
+  ]
+}
+
+Maximum 6 branches, 3 children each. Colors should be visually distinct. No markdown, no preamble.`;
+
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1200,temperature:0.5}})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error?.message||'Error');
+    const rParts=data.candidates?.[0]?.content?.parts||[];
+    const rText=((rParts.find(p=>!p.thought&&p.text)||rParts[0])||{}).text||'';
+
+    let mapData;
+    try{
+      const cleaned=rText.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+      const match=cleaned.match(/(\{[\s\S]*\})/);
+      mapData=JSON.parse(match?match[1]:cleaned);
+    }catch{
+      // Fallback: build from actual topics
+      const branchColors=['#7c6ffa','#22d3ee','#a855f7','#f59e0b','#22c55e','#ef4444'];
+      mapData={center:deck.meta.name.slice(0,20),branches:topics.slice(0,6).map((t,i)=>({label:t,color:branchColors[i%branchColors.length],children:deck.cards.filter(c=>c.topic===t).slice(0,3).map(c=>c.q.replace(/<[^>]+>/g,'').slice(0,30))}))};
+    }
+    body.innerHTML=renderMindMap(mapData);
+    earnCoins(5,'mind map');
+  }catch(e){body.innerHTML=`<div class="explain-body" style="color:#ef4444">Error: ${e.message}</div>`;}
+}
+
+function renderMindMap(data){
+  const {center,branches=[]}=data;
+  const W=600,H=440,cx=W/2,cy=H/2;
+  const n=branches.length;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;font-family:'Outfit',sans-serif;overflow:visible">
+  <defs><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity=".15"/></filter></defs>
+  <!-- Center node -->
+  <ellipse cx="${cx}" cy="${cy}" rx="70" ry="32" fill="var(--ac)" filter="url(#shadow)"/>
+  <text x="${cx}" y="${cy+5}" text-anchor="middle" fill="white" font-size="13" font-weight="700">${esc(center.slice(0,18))}</text>`;
+
+  branches.forEach((br,i)=>{
+    const angle=(i/n)*Math.PI*2 - Math.PI/2;
+    const bx=cx+Math.cos(angle)*160,by=cy+Math.sin(angle)*130;
+    const col=br.color||'#7c6ffa';
+    // Line from center to branch
+    svg+=`<line x1="${cx}" y1="${cy}" x2="${bx}" y2="${by}" stroke="${col}" stroke-width="2.5" stroke-opacity=".6"/>`;
+    // Branch node
+    const bw=Math.min(100,br.label.length*8+20);
+    svg+=`<rect x="${bx-bw/2}" y="${by-18}" width="${bw}" height="34" rx="10" fill="${col}" filter="url(#shadow)"/>
+    <text x="${bx}" y="${by+5}" text-anchor="middle" fill="white" font-size="11" font-weight="600">${esc(br.label.slice(0,14))}</text>`;
+    // Children
+    (br.children||[]).slice(0,3).forEach((child,j)=>{
+      const spread=0.35,childAngle=angle+(j-1)*spread;
+      const clx=bx+Math.cos(childAngle)*90,cly=by+Math.sin(childAngle)*70;
+      svg+=`<line x1="${bx}" y1="${by}" x2="${clx}" y2="${cly}" stroke="${col}" stroke-width="1.5" stroke-opacity=".4" stroke-dasharray="4"/>`;
+      svg+=`<circle cx="${clx}" cy="${cly}" r="28" fill="var(--surf)" stroke="${col}" stroke-width="1.5"/>
+      <text x="${clx}" y="${cly-4}" text-anchor="middle" fill="var(--ink)" font-size="8.5" font-weight="500">${esc(child.slice(0,12))}</text>
+      ${child.length>12?`<text x="${clx}" y="${cly+7}" text-anchor="middle" fill="var(--ink-2)" font-size="7.5">${esc(child.slice(12,24))}</text>`:''}`;
+    });
+  });
+  svg+='</svg>';
+  return `<div style="text-align:center">${svg}</div><div style="font-size:.7rem;color:var(--ink-3);text-align:center;margin-top:.75rem;font-family:'DM Mono',monospace">${branches.length} branches · ${branches.reduce((a,b)=>a+(b.children||[]).length,0)} concepts mapped</div>`;
+}
+
+document.getElementById('mindmap-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('mindmap-overlay'))document.getElementById('mindmap-overlay').classList.remove('show');});
+document.getElementById('mindmap-close').addEventListener('click',()=>document.getElementById('mindmap-overlay').classList.remove('show'));
+
+// ══════════════════════════════════════
+// FEATURE 5: STUDY ROOMS (BroadcastChannel)
+// ══════════════════════════════════════
+function openRoom(){
+  document.getElementById('room-overlay').classList.add('show');
+  if(roomCode) showActiveRoom();
+  else{
+    document.getElementById('room-active').style.display='none';
+    document.querySelector('#room-body .room-section').style.display='';
+    document.querySelector('.room-divider').style.display='';
+    document.querySelectorAll('#room-body .room-section')[1].style.display='';
+  }
+}
+
+function genRoomCode(){return Math.random().toString(36).slice(2,8).toUpperCase();}
+
+document.getElementById('room-create-btn').addEventListener('click',()=>{
+  const name=prompt('Your name for this room:','Student');
+  if(!name)return;
+  roomName=name.trim()||'Student';
+  roomCode=genRoomCode();
+  joinRoomChannel();
+  earnBadge('room_joined');
+  earnCoins(5,'created room');
+  showActiveRoom();
+  showToast('Room created! Share code: '+roomCode,'info');
+});
+
+document.getElementById('room-join-btn').addEventListener('click',()=>{
+  const code=document.getElementById('room-code-input').value.trim().toUpperCase();
+  if(code.length<4){showToast('Enter a valid room code','error');return;}
+  const name=prompt('Your name:','Student');
+  if(!name)return;
+  roomName=name.trim()||'Student';
+  roomCode=code;
+  joinRoomChannel();
+  earnBadge('room_joined');
+  showActiveRoom();
+  showToast('Joined room '+code+'!','info');
+});
+
+function joinRoomChannel(){
+  if(roomChannel)roomChannel.close();
+  try{
+    roomChannel=new BroadcastChannel('fg_room_'+roomCode);
+    roomMembers[roomName]={name:roomName,card:cardIdx,deck:curDeckId?getDeck(curDeckId)?.meta?.name||'Unknown':'No deck',lastSeen:Date.now()};
+    roomChannel.postMessage({type:'join',name:roomName,deck:curDeckId?getDeck(curDeckId)?.meta?.name||'Unknown':'No deck'});
+    roomChannel.onmessage=e=>{
+      const msg=e.data;
+      if(msg.type==='join'){
+        roomMembers[msg.name]={name:msg.name,deck:msg.deck,card:0,lastSeen:Date.now()};
+        roomChannel.postMessage({type:'hello',name:roomName,deck:curDeckId?getDeck(curDeckId)?.meta?.name||'Unknown':'No deck',card:cardIdx});
+        addRoomFeed('👋 '+msg.name+' joined');
+        renderRoomMembers();
+      } else if(msg.type==='hello'){
+        roomMembers[msg.name]={name:msg.name,deck:msg.deck,card:msg.card||0,lastSeen:Date.now()};
+        renderRoomMembers();
+      } else if(msg.type==='progress'){
+        if(roomMembers[msg.name])roomMembers[msg.name].card=msg.card;
+        renderRoomMembers();
+        addRoomFeed('📖 '+msg.name+' is on card '+(msg.card+1));
+      } else if(msg.type==='leave'){
+        delete roomMembers[msg.name];
+        addRoomFeed('👋 '+msg.name+' left');
+        renderRoomMembers();
+      }
+    };
+  }catch(e){showToast('Study Rooms require a modern browser','error');}
+}
+
+function broadcastProgress(){
+  if(roomChannel&&roomCode) roomChannel.postMessage({type:'progress',name:roomName,card:cardIdx});
+}
+
+function showActiveRoom(){
+  document.querySelector('#room-body .room-section').style.display='none';
+  document.querySelector('.room-divider').style.display='none';
+  document.querySelectorAll('#room-body .room-section')[1].style.display='none';
+  document.getElementById('room-active').style.display='';
+  document.getElementById('room-code-show').textContent=roomCode;
+  renderRoomMembers();
+}
+
+function renderRoomMembers(){
+  const el=document.getElementById('room-members');
+  const members=Object.values(roomMembers);
+  el.innerHTML=`<div style="font-size:.7rem;color:var(--ink-2);font-family:'DM Mono',monospace;margin-bottom:.5rem">${members.length} member${members.length!==1?'s':''} online</div>`+
+    members.map(m=>`<div class="room-member"><span class="rm-dot"></span><span class="rm-name">${esc(m.name)}${m.name===roomName?' (you)':''}</span><span class="rm-deck" style="font-size:.65rem;color:var(--ink-2)">${esc(m.deck)}</span></div>`).join('');
+}
+
+let roomFeedLog=[];
+function addRoomFeed(msg){
+  roomFeedLog.push(msg);if(roomFeedLog.length>10)roomFeedLog=roomFeedLog.slice(-10);
+  const el=document.getElementById('room-feed');
+  el.innerHTML=roomFeedLog.map(m=>`<div style="font-size:.7rem;color:var(--ink-2);padding:.2rem 0;font-family:'DM Mono',monospace">${m}</div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+document.getElementById('room-copy-code').addEventListener('click',()=>{
+  navigator.clipboard?.writeText(roomCode).then(()=>showToast('Room code copied!','info'));
+});
+
+document.getElementById('room-leave-btn').addEventListener('click',()=>{
+  if(roomChannel){roomChannel.postMessage({type:'leave',name:roomName});roomChannel.close();}
+  roomCode=null;roomChannel=null;roomMembers={};roomFeedLog=[];
+  document.getElementById('room-active').style.display='none';
+  document.querySelector('#room-body .room-section').style.display='';
+  document.querySelector('.room-divider').style.display='';
+  document.querySelectorAll('#room-body .room-section')[1].style.display='';
+  showToast('Left the study room');
+});
+
+document.getElementById('room-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('room-overlay'))document.getElementById('room-overlay').classList.remove('show');});
+document.getElementById('room-close').addEventListener('click',()=>document.getElementById('room-overlay').classList.remove('show'));
+
+// ══════════════════════════════════════
+// FEATURE 7: REWARD SHOP
+// ══════════════════════════════════════
+const SHOP_ITEMS=[
+  {id:'theme_ember',name:'🔥 Ember Theme',desc:'Warm ember dark theme',cost:50,type:'theme',value:'ember'},
+  {id:'theme_cyberpunk',name:'💜 Cyberpunk Theme',desc:'Neon cyber aesthetic',cost:75,type:'theme',value:'cyberpunk'},
+  {id:'theme_dracula',name:'🧛 Dracula Theme',desc:'Classic dark purple',cost:60,type:'theme',value:'dracula'},
+  {id:'theme_deepspace',name:'🌌 Deep Space Theme',desc:'Into the cosmos',cost:100,type:'theme',value:'deepspace'},
+  {id:'card_confetti',name:'🎉 Card Confetti',desc:'Confetti burst on card flip',cost:80,type:'effect',value:'confetti'},
+  {id:'streak_freeze',name:'❄️ Streak Freeze',desc:'Protect your streak for 1 day',cost:30,type:'powerup',value:'freeze'},
+  {id:'hint_extra',name:'💡 Extra Hints ×5',desc:'5 extra hints in quiz mode',cost:40,type:'powerup',value:'hints'},
+  {id:'coin_double',name:'⚡ Coin Double (1 day)',desc:'Earn 2× coins for 24 hours',cost:120,type:'powerup',value:'2x'},
+];
+
+function openShop(){
+  document.getElementById('shop-overlay').classList.add('show');
+  renderShop();
+}
+
+function renderShop(){
+  const coins=getCoins();
+  const unlocked=getUnlocked();
+  document.getElementById('shop-coins-display').textContent=coins;
+  const grid=document.getElementById('shop-grid');
+  grid.innerHTML='';
+  SHOP_ITEMS.forEach(item=>{
+    const owned=unlocked.includes(item.id);
+    const canAfford=coins>=item.cost;
+    const el=document.createElement('div');
+    el.className='shop-item'+(owned?' owned':'')+(canAfford||owned?'':' locked');
+    el.innerHTML=`<div class="si-name">${item.name}</div>
+      <div class="si-desc">${item.desc}</div>
+      <div class="si-foot">
+        <span class="si-cost">🪙 ${item.cost}</span>
+        ${owned?'<span class="si-owned">✓ Owned</span>':`<button class="si-buy" data-id="${item.id}" ${canAfford?'':'disabled'}>Buy</button>`}
+      </div>`;
+    if(!owned){
+      el.querySelector('.si-buy')?.addEventListener('click',()=>buyItem(item));
+    } else if(item.type==='theme'){
+      el.style.cursor='pointer';
+      el.addEventListener('click',()=>{applyTheme(item.value);showToast('Theme applied!');});
+    }
+    grid.appendChild(el);
+  });
+}
+
+function buyItem(item){
+  const coins=getCoins();
+  if(coins<item.cost){showToast('Not enough coins!','error');return;}
+  setCoins(coins-item.cost);
+  const unlocked=getUnlocked();
+  unlocked.push(item.id);
+  $.set('fg:unlocked',unlocked);
+  earnBadge('shop_unlock');
+  if(item.type==='theme') applyTheme(item.value);
+  if(item.type==='powerup'&&item.value==='freeze'){
+    const tomorrow=new Date(Date.now()+864e5).toISOString().slice(0,10);
+    $.set('fg:streak_freeze',tomorrow);
+  }
+  if(item.type==='powerup'&&item.value==='2x'){
+    $.set('fg:coin_double_until',Date.now()+864e5);
+  }
+  if(item.type==='powerup'&&item.value==='hints'){
+    $.set('fg:extra_hints',($.get('fg:extra_hints',0))+5);
+  }
+  showToast('✓ '+item.name+' unlocked!');
+  renderShop();
+}
+
+document.getElementById('shop-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('shop-overlay'))document.getElementById('shop-overlay').classList.remove('show');});
+document.getElementById('shop-close').addEventListener('click',()=>document.getElementById('shop-overlay').classList.remove('show'));
+
+// ══════════════════════════════════════
+// FEATURE 17: PWA SERVICE WORKER
+// ══════════════════════════════════════
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(()=>{
+      console.log('FlashGen SW registered');
+    }).catch(err=>console.log('SW registration failed:',err));
+  });
+}
+
+// ══════════════════════════════════════
+// FEATURE 19: EXAM SIMULATION MODE
+// ══════════════════════════════════════
+const SIM_PATTERNS={
+  jee:{name:'JEE Main',time:90,marks:4,negative:-1,desc:'90 min · +4/–1 · MCQ'},
+  neet:{name:'NEET',time:180,marks:4,negative:-1,desc:'180 min · +4/–1 · MCQ'},
+  cbse:{name:'CBSE Board',time:180,marks:1,negative:0,desc:'180 min · +1/0 · No negative'},
+  upsc:{name:'UPSC',time:120,marks:2,negative:-0.67,desc:'120 min · +2/–⅔ · MCQ'},
+  custom:{name:'Custom',time:30,marks:4,negative:-1,desc:'Custom settings'}
+};
+
+document.getElementById('sim-pattern').addEventListener('change',e=>{
+  const p=SIM_PATTERNS[e.target.value];
+  if(p&&e.target.value!=='custom'){
+    document.getElementById('sim-time').value=p.time;
+    document.getElementById('sim-marks').value=p.marks;
+    document.getElementById('sim-negative').value=p.negative;
+  }
+});
+
+function openExamSim(){
+  document.getElementById('examsim-overlay').classList.add('show');
+  document.getElementById('examsim-setup').style.display='';
+  document.getElementById('examsim-active').style.display='none';
+  document.getElementById('examsim-results').style.display='none';
+}
+
+document.getElementById('examsim-start-btn').addEventListener('click',()=>{
+  if(!allCards.length){showToast('Open a deck first','error');return;}
+  const qcount=parseInt(document.getElementById('sim-qcount').value)||20;
+  const time=parseInt(document.getElementById('sim-time').value)||30;
+  const marks=parseFloat(document.getElementById('sim-marks').value)||4;
+  const negative=parseFloat(document.getElementById('sim-negative').value)||(-1);
+  const patternKey=document.getElementById('sim-pattern').value;
+  simConfig={qcount,time,marks,negative,pattern:SIM_PATTERNS[patternKey]?.name||'Custom'};
+
+  // Shuffle and pick cards, build MCQ questions
+  simCards=shuffle([...allCards]).slice(0,Math.min(qcount,allCards.length));
+  simAnswers=simCards.map(()=>({selected:null,markedReview:false}));
+  simIdx=0;simReviewLater=new Set();
+  simTimeLeft=time*60;
+
+  document.getElementById('examsim-setup').style.display='none';
+  document.getElementById('examsim-active').style.display='';
+  renderSimQuestion();
+  startSimTimer();
+  buildSimPalette();
+});
+
+function renderSimQuestion(){
+  const card=simCards[simIdx];
+  if(!card){endExamSim();return;}
+  const ans=simAnswers[simIdx];
+
+  document.getElementById('sim-q-num').textContent=`Q${simIdx+1}/${simCards.length}`;
+  document.getElementById('sim-prog-fill').style.width=((simIdx+1)/simCards.length*100)+'%';
+  updateSimScore();
+
+  // Build distractors
+  const correct=card.a.replace(/<[^>]+>/g,'').slice(0,120);
+  const pool=allCards.filter(c=>c!==card&&c.a);
+  const distractors=shuffle(pool).slice(0,3).map(c=>c.a.replace(/<[^>]+>/g,'').slice(0,120));
+  while(distractors.length<3)distractors.push(['Cannot be determined','None of the above','All of the above'][distractors.length]);
+  const opts=shuffle([correct,...distractors]);
+
+  document.getElementById('sim-question').innerHTML=`
+    <div class="sim-q-meta">${card.topic||'General'} · ${card.chapter||'General'} ${ans.markedReview?'<span style="color:#a78bfa;font-size:.7rem">📌 Marked for review</span>':''}</div>
+    <div class="sim-q-text">${card.q}</div>`;
+
+  const optsEl=document.getElementById('sim-options');
+  optsEl.innerHTML='';
+  const LETTERS=['A','B','C','D'];
+  opts.forEach((opt,i)=>{
+    const btn=document.createElement('button');
+    btn.className='sim-opt'+(ans.selected===i?' selected':'');
+    btn.innerHTML=`<span class="sim-opt-letter">${LETTERS[i]}</span><span>${esc(opt)}</span>`;
+    btn.dataset.optIdx=i;
+    btn.dataset.isCorrect=(opt===correct);
+    btn.addEventListener('click',()=>{
+      simAnswers[simIdx].selected=i;
+      simAnswers[simIdx].correctOpt=opts.findIndex(o=>o===correct);
+      document.querySelectorAll('.sim-opt').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      updateSimScore();
+      updateSimPaletteCell(simIdx,'answered');
+    });
+    optsEl.appendChild(btn);
+  });
+}
+
+function updateSimScore(){
+  let score=0,attempted=0;
+  simAnswers.forEach((a,i)=>{
+    if(a.selected===null)return;
+    attempted++;
+    const isCorrect=a.selected===a.correctOpt;
+    score+=isCorrect?simConfig.marks:simConfig.negative;
+  });
+  document.getElementById('sim-score-live').textContent=score.toFixed(1);
+  document.getElementById('sim-attempted').textContent=attempted;
+}
+
+function startSimTimer(){
+  clearInterval(simTimer);
+  simTimer=setInterval(()=>{
+    simTimeLeft--;
+    const m=Math.floor(simTimeLeft/60),s=simTimeLeft%60;
+    const disp=document.getElementById('sim-timer-display');
+    disp.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    if(simTimeLeft<=300)disp.style.color='#ef4444';
+    if(simTimeLeft<=0){clearInterval(simTimer);endExamSim();}
+  },1000);
+}
+
+function buildSimPalette(){
+  const el=document.getElementById('sim-palette');
+  el.innerHTML='<div style="font-size:.65rem;color:var(--ink-2);font-family:\'DM Mono\',monospace;margin-bottom:.4rem">Question palette</div><div class="sim-pal-grid" id="sim-pal-grid"></div>';
+  const grid=document.getElementById('sim-pal-grid');
+  simCards.forEach((_,i)=>{
+    const btn=document.createElement('button');
+    btn.className='sim-pal-btn';btn.textContent=i+1;btn.dataset.i=i;
+    btn.addEventListener('click',()=>{simIdx=i;renderSimQuestion();updateAllPalette();});
+    grid.appendChild(btn);
+  });
+  updateAllPalette();
+}
+
+function updateAllPalette(){
+  document.querySelectorAll('.sim-pal-btn').forEach((btn,i)=>{
+    btn.classList.remove('current','answered','review');
+    if(i===simIdx)btn.classList.add('current');
+    else if(simAnswers[i]?.selected!==null)btn.classList.add('answered');
+    if(simReviewLater.has(i))btn.classList.add('review');
+  });
+}
+
+function updateSimPaletteCell(i,cls){
+  const btn=document.querySelectorAll('.sim-pal-btn')[i];
+  if(btn)btn.classList.add(cls);
+}
+
+document.getElementById('sim-prev-btn').addEventListener('click',()=>{if(simIdx>0){simIdx--;renderSimQuestion();updateAllPalette();}});
+document.getElementById('sim-next-btn').addEventListener('click',()=>{if(simIdx<simCards.length-1){simIdx++;renderSimQuestion();updateAllPalette();}});
+document.getElementById('sim-skip-btn').addEventListener('click',()=>{if(simIdx<simCards.length-1){simIdx++;renderSimQuestion();updateAllPalette();}});
+document.getElementById('sim-review-btn').addEventListener('click',()=>{
+  if(simReviewLater.has(simIdx))simReviewLater.delete(simIdx);else simReviewLater.add(simIdx);
+  simAnswers[simIdx].markedReview=simReviewLater.has(simIdx);
+  renderSimQuestion();updateAllPalette();
+});
+document.getElementById('sim-submit-btn').addEventListener('click',()=>{
+  if(!confirm('Submit exam? You cannot change answers after this.'))return;
+  clearInterval(simTimer);endExamSim();
+});
+
+function endExamSim(){
+  clearInterval(simTimer);
+  document.getElementById('examsim-active').style.display='none';
+  document.getElementById('examsim-results').style.display='';
+  earnBadge('exam_sim');earnCoins(20,'exam simulation');
+
+  let correct=0,wrong=0,skipped=0,totalScore=0;
+  simAnswers.forEach(a=>{
+    if(a.selected===null){skipped++;return;}
+    if(a.selected===a.correctOpt){correct++;totalScore+=simConfig.marks;}
+    else{wrong++;totalScore+=simConfig.negative;}
+  });
+  const pct=Math.round(correct/simCards.length*100);
+  if(pct===100)earnBadge('perfect_sim');
+
+  const wrongList=simCards.map((c,i)=>({c,a:simAnswers[i]})).filter(x=>x.a.selected!==null&&x.a.selected!==x.a.correctOpt);
+
+  document.getElementById('examsim-results').innerHTML=`
+    <div style="text-align:center;padding:1.5rem 1.5rem .75rem">
+      <div style="font-size:3rem">${pct>=80?'🏆':pct>=60?'🎯':pct>=40?'👍':'📚'}</div>
+      <div style="font-size:2rem;font-weight:700;color:var(--ac);margin:.3rem 0">${totalScore.toFixed(1)} / ${(simCards.length*simConfig.marks).toFixed(1)}</div>
+      <div style="font-size:.85rem;color:var(--ink-2)">${pct}% accuracy · ${simConfig.pattern}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;padding:0 1.5rem .75rem;text-align:center">
+      <div class="rstat"><span class="rstat-n" style="color:#22c55e">${correct}</span><span class="rstat-l">Correct</span></div>
+      <div class="rstat"><span class="rstat-n" style="color:#ef4444">${wrong}</span><span class="rstat-l">Wrong</span></div>
+      <div class="rstat"><span class="rstat-n" style="color:#f59e0b">${skipped}</span><span class="rstat-l">Skipped</span></div>
+      <div class="rstat"><span class="rstat-n" style="color:var(--ac)">${pct}%</span><span class="rstat-l">Accuracy</span></div>
+    </div>
+    ${wrongList.length?`<div style="padding:0 1.5rem 1.5rem">
+      <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin-bottom:.6rem">Review Wrong Answers</div>
+      ${wrongList.slice(0,5).map(x=>`<div class="bk-row bk-wrong" style="cursor:pointer" onclick="openWrongExplainer('${x.c.q.replace(/'/g,'&apos;').replace(/<[^>]+>/g,'').slice(0,100)}','${x.c.a.replace(/<[^>]+>/g,'').replace(/'/g,'&apos;').slice(0,80)}','',${JSON.stringify(x.c.topic||'General')},${JSON.stringify(curDeckMeta()?.exam||'CBSE')})">
+        <div class="bk-ic">✗</div>
+        <div class="bk-body"><div class="bk-q">${x.c.q.replace(/<[^>]+>/g,'').slice(0,70)}…</div></div>
+        <div class="bk-pts" style="font-size:.65rem;color:var(--ac)">Why? →</div>
+      </div>`).join('')}
+    </div>`:''}
+    <div style="padding:0 1.5rem 1.5rem;display:flex;gap:.75rem">
+      <button class="btn-full" onclick="openExamSim()">🔄 Try Again</button>
+    </div>`;
+}
+
+document.getElementById('examsim-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('examsim-overlay')){clearInterval(simTimer);document.getElementById('examsim-overlay').classList.remove('show');}});
+document.getElementById('examsim-close').addEventListener('click',()=>{clearInterval(simTimer);document.getElementById('examsim-overlay').classList.remove('show');});
+
+// ══════════════════════════════════════
+// FEATURE 20: WHATSAPP / TELEGRAM BOT
+// ══════════════════════════════════════
+function openBotModal(){
+  document.getElementById('bot-overlay').classList.add('show');
+  buildBotPreview();
+}
+
+function buildBotPreview(){
+  if(!allCards.length&&!curDeckId){
+    document.getElementById('bot-cards-preview').textContent='Open a deck to see today\'s cards here.';
+    return;
+  }
+  const cards=allCards.length?allCards:getDeck(curDeckId)?.cards||[];
+  // Pick 5: prioritise high-priority, unseen, or weak cards
+  const res=curDeckId?getRes(curDeckId):{};
+  const weakOrUnseen=cards.filter((_,i)=>!res[i]||res[i]==='again').slice(0,5);
+  const selected=(weakOrUnseen.length>=5?weakOrUnseen:cards).slice(0,5);
+  const deck=curDeckId?getDeck(curDeckId):null;
+  const exam=deck?.meta?.exam||selExam||'General';
+  const today=new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+
+  const text=`📚 FlashGen Daily Cards — ${today}
+Exam: ${exam}
+━━━━━━━━━━━━━━━━
+
+${selected.map((c,i)=>`Q${i+1}. ${c.q.replace(/<[^>]+>/g,'').slice(0,120)}
+
+💡 Answer: ${c.a.replace(/<[^>]+>/g,'').slice(0,150)}
+
+`).join('---\n')}
+━━━━━━━━━━━━━━━━
+Keep revising! 🎯 Open FlashGen to track your progress.`;
+
+  document.getElementById('bot-cards-preview').textContent=text;
+  return text;
+}
+
+document.getElementById('bot-wa-btn').addEventListener('click',()=>{
+  const text=buildBotPreview();
+  const encoded=encodeURIComponent(text);
+  window.open('https://wa.me/?text='+encoded,'_blank');
+  earnBadge('bot_sent');earnCoins(3,'sent to WhatsApp');
+  showToast('Opening WhatsApp…','info');
+});
+
+document.getElementById('bot-tg-btn').addEventListener('click',()=>{
+  const text=buildBotPreview();
+  const encoded=encodeURIComponent(text);
+  window.open('https://t.me/share/url?url=https://flashgen.app&text='+encoded,'_blank');
+  earnBadge('bot_sent');earnCoins(3,'sent to Telegram');
+  showToast('Opening Telegram…','info');
+});
+
+document.getElementById('bot-alarm-btn').addEventListener('click',()=>{
+  const time=prompt('Set daily reminder time (e.g. 7:00):','7:00');
+  if(!time)return;
+  showToast('⏰ Reminder noted for '+time+' — set a recurring phone alarm too!','info');
+  $.set('fg:bot_reminder_time',time);
+});
+
+document.getElementById('bot-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('bot-overlay'))document.getElementById('bot-overlay').classList.remove('show');});
+document.getElementById('bot-close').addEventListener('click',()=>document.getElementById('bot-overlay').classList.remove('show'));
+
+// ── Hook bot button in card viewer nav (add dynamically) ──
+const cvBotBtn=document.createElement('button');
+cvBotBtn.className='nb';cvBotBtn.id='cv-bot';cvBotBtn.textContent='📱 Send';
+cvBotBtn.addEventListener('click',openBotModal);
+document.querySelector('#screen-cards .nav-actions').insertBefore(cvBotBtn, document.getElementById('cv-dash'));
+
+// ── Hook adaptive explainer to wrong SR ratings ──
+const _rateSROriginal = window.rateSR;
+document.getElementById('sr-again').addEventListener('click',()=>{
+  const card=filteredCards[cardIdx];
+  const wrongCount=$.get('fg:wrong:'+encodeURIComponent((card?.q||'').slice(0,40)),0);
+  if(wrongCount>=2) setTimeout(()=>openAdaptiveExplainer(card),500);
+},{capture:false});
+
+// ── Broadcast room progress on card change ──
+const _origUpdateCard=updateCard;
+
+// Broadcast on card navigation
+document.getElementById('next-btn').addEventListener('click',()=>setTimeout(broadcastProgress,100),true);
+document.getElementById('prev-btn').addEventListener('click',()=>setTimeout(broadcastProgress,100),true);
+
+// ── Update coin display in shop when opened ──
+function updateCoinDisplay(){
+  const el=document.getElementById('shop-coins-display');
+  if(el)el.textContent=getCoins();
+}
+
+// ── Add coin balance to dashboard ──
+const _origRenderDash=renderDash;
+renderDash=function(){
+  _origRenderDash();
+  // add coins stat
+  const sDecks=document.getElementById('s-decks');
+  if(sDecks&&sDecks.parentElement){
+    const existing=document.getElementById('s-coins');
+    if(!existing){
+      const coinBox=document.createElement('div');
+      coinBox.className='sbox';coinBox.id='s-coins';
+      coinBox.innerHTML=`<div class="snum" style="color:#f59e0b">${getCoins()}</div><div class="slbl">🪙 Coins</div>`;
+      sDecks.parentElement.appendChild(coinBox);
+    } else {
+      existing.querySelector('.snum').textContent=getCoins();
+    }
+  }
+};
+

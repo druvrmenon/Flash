@@ -623,6 +623,33 @@ function showFeedback(correct, wrongAns, earned){
       : '<strong>Not quite.</strong>';
     document.getElementById('fb-pts').textContent='0 pts';
     fb.className='feedback wrong show';
+    // Show "Why Was I Wrong?" button after 400ms
+    setTimeout(()=>{
+      const existing=document.getElementById('why-wrong-btn');
+      if(!existing){
+        const btn=document.createElement('button');
+        btn.id='why-wrong-btn';
+        btn.className='nb';
+        btn.style.cssText='margin-top:.5rem;font-size:.72rem;padding:.3rem .75rem;color:var(--ac);border-color:var(--ac)';
+        btn.textContent='💡 Why was I wrong?';
+        btn.addEventListener('click',()=>{
+          // Open the explainer - check if parent window has it, otherwise open modal
+          const q=curQ.prompt;
+          const correct=curQ.opts[curQ.correctIdx];
+          const chosen=curQ.opts.find((_,i)=>i!==curQ.correctIdx)||'';
+          const topic=curQ.topic||curQ.card?.topic||'General';
+          const exam=$.get('fg:theme','General');
+          // Try to call parent window function if it exists
+          if(window.opener?.openWrongExplainer){
+            window.opener.openWrongExplainer(q,correct,chosen,topic,'General');
+          } else {
+            // Store data and open explanation as alert-like display
+            showWrongExplainerInline(q,correct,chosen,topic);
+          }
+        });
+        fb.appendChild(btn);
+      }
+    },400);
   }
 }
 
@@ -656,7 +683,45 @@ function updateStreakUI(){
 function flashStreak(){ const el=document.getElementById('streak-display'); el.classList.add('pop'); setTimeout(()=>el.classList.remove('pop'),400); }
 
 // ═══ ADVANCE ══════════════════════════════════════════
-function nextQ(){ if(!answered)return; qIdx++; renderQ(); }
+function nextQ(){
+  if(!answered)return;
+  // Remove why-wrong button
+  const wwb=document.getElementById('why-wrong-btn');if(wwb)wwb.remove();
+  const wwe=document.getElementById('wrong-exp-inline');if(wwe)wwe.remove();
+  qIdx++;
+  renderQ();
+}
+
+// ═══ INLINE WRONG EXPLAINER ══════════════════════════
+async function showWrongExplainerInline(q, correct, chosen, topic){
+  const existing=document.getElementById('wrong-exp-inline');
+  if(existing)existing.remove();
+  const el=document.createElement('div');
+  el.id='wrong-exp-inline';
+  el.style.cssText='margin-top:.75rem;background:var(--surf);border:1px solid var(--br);border-radius:14px;padding:1rem;font-size:.8rem;color:var(--ink);line-height:1.7;text-align:left';
+  el.innerHTML='<div style="color:var(--ac);font-size:.7rem;font-family:\'DM Mono\',monospace;margin-bottom:.4rem">💡 AI Explanation loading…</div>';
+  document.getElementById('feedback').appendChild(el);
+
+  const key=$.get('fg_key',null)||localStorage.getItem('fg_key');
+  if(!key){el.innerHTML='<div style="color:var(--ink-2)">Add your API key to get explanations.</div>';return;}
+  try{
+    const prompt=`A student got this quiz question WRONG.
+QUESTION: ${q}
+CORRECT ANSWER: ${correct}
+STUDENT CHOSE: ${chosen||'(skipped)'}
+TOPIC: ${topic}
+
+Explain in 3-4 sentences why the correct answer is right and the student's choice was wrong. Include one memory tip. Be concise.`;
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent?key=${key}`;
+    const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:500,temperature:0.3}})});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.error?.message||'Error');
+    const parts=data.candidates?.[0]?.content?.parts||[];
+    const text=((parts.find(p=>!p.thought&&p.text)||parts[0])||{}).text||'';
+    el.innerHTML=`<div style="color:var(--ac);font-size:.65rem;font-family:'DM Mono',monospace;margin-bottom:.35rem">💡 WHY YOU WERE WRONG</div>${text.trim().replace(/\n/g,'<br>')}`;
+  }catch(e){el.innerHTML=`<div style="color:#ef4444;font-size:.75rem">Could not load explanation: ${e.message}</div>`;}
+}
 
 // ═══ KEYBOARD ═════════════════════════════════════════
 function onKey(e){
