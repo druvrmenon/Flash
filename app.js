@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════
+﻿/* ══════════════════════════════════════════
    FLASHGEN v4 — COMPLETE ENGINE
    New: Multi-PDF, AI Doubt Chat, Weak Topic Notes, Focus Timer, AI Summary
 ══════════════════════════════════════════ */
@@ -1576,7 +1576,7 @@ function renderMindMap(data){
   const {center,branches=[]}=data;
   const W=600,H=440,cx=W/2,cy=H/2;
   const n=branches.length;
-  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;font-family:'Outfit',sans-serif;overflow:visible">
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;font-family:'Inter', system-ui, -apple-system, sans-serif;overflow:visible">
   <defs><filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity=".15"/></filter></defs>
   <!-- Center node -->
   <ellipse cx="${cx}" cy="${cy}" rx="70" ry="32" fill="var(--ac)" filter="url(#shadow)"/>

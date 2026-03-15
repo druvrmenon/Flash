@@ -1,4 +1,4 @@
-// FlashGen Service Worker v5
+﻿// FlashGen Service Worker v5
 // Caches app shell for offline use
 
 const CACHE_NAME = 'flashgen-v5';
@@ -11,7 +11,7 @@ const STATIC_ASSETS = [
   './quiz.js',
   './quiz.css',
   './manifest.json',
-  'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js'
 ];
 

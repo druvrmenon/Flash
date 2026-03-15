@@ -1,4 +1,4 @@
-/* ═══════════════════════════════════════════════════
+﻿/* ═══════════════════════════════════════════════════
    FlashGen Quiz — Uses CSS vars from styles.css themes
    Outfit + DM Mono
 ═══════════════════════════════════════════════════ */
@@ -62,7 +62,7 @@
   color: var(--ink-2);
   border-radius: 9px;
   padding: .55rem .9rem;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: .83rem; font-weight: 500;
   cursor: pointer;
   text-align: left;
@@ -85,7 +85,7 @@
 .hud-right { display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
 
 .brand {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-weight: 800; font-size: 1rem;
   letter-spacing: -.02em;
   background: var(--grad);
@@ -134,7 +134,7 @@
   background: var(--ac-s); border: 1px solid var(--br);
   border-radius: 8px; padding: .3rem .65rem;
   font-size: .75rem; cursor: pointer; color: var(--ac);
-  font-family: 'Outfit', sans-serif; font-weight: 500;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; font-weight: 500;
   transition: all .15s; white-space: nowrap;
 }
 .theme-toggle-btn:hover { border-color: var(--ac); }
@@ -193,7 +193,7 @@
   background: var(--surf); border: 2px solid var(--br);
   border-radius: 14px; padding: 1.1rem 1.2rem;
   cursor: pointer; transition: all .18s;
-  text-align: left; font-family: 'Outfit', sans-serif;
+  text-align: left; font-family: 'Inter', system-ui, -apple-system, sans-serif;
   position: relative;
 }
 .diff-card:hover { transform: translateY(-2px); box-shadow: 0 8px 28px var(--sh); border-color: var(--ac); }
@@ -239,7 +239,7 @@
 .start-btn {
   width: 100%; padding: 1rem;
   background: var(--grad); border: none; border-radius: 12px;
-  font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 700;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 1rem; font-weight: 700;
   color: #fff; cursor: pointer; transition: all .2s; letter-spacing: -.01em;
 }
 .start-btn:disabled { background: var(--surf); color: var(--ink-3); cursor: not-allowed; font-weight: 400; border: 1.5px solid var(--br); }
@@ -344,7 +344,7 @@
 .opt-btn {
   background: var(--surf); border: 1.5px solid var(--br);
   border-radius: 12px; padding: .85rem 1rem;
-  text-align: left; font-family: 'Outfit', sans-serif;
+  text-align: left; font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: .86rem; color: var(--ink);
   cursor: pointer; transition: border-color .12s, background .12s, transform .1s;
   display: flex; align-items: flex-start; gap: .65rem; line-height: 1.45;
@@ -383,7 +383,7 @@
 .hint-btn {
   background: transparent; border: 1px solid var(--br);
   border-radius: 7px; padding: .35rem .8rem;
-  font-family: 'Outfit', sans-serif; font-size: .75rem; color: var(--ink-2);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: .75rem; color: var(--ink-2);
   cursor: pointer; transition: all .14s; display: flex; align-items: center; gap: .35rem;
 }
 .hint-btn:hover:not(.used) { border-color: var(--ac); color: var(--ac); }
@@ -432,7 +432,7 @@
 .next-wrap { display: flex; justify-content: flex-end; }
 .next-btn {
   background: var(--mode); border: none; border-radius: 10px;
-  padding: .7rem 1.5rem; font-family: 'Outfit', sans-serif;
+  padding: .7rem 1.5rem; font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: .9rem; font-weight: 600; color: #fff;
   cursor: pointer; transition: opacity .15s, transform .12s; display: flex; align-items: center; gap: .5rem;
 }
@@ -526,7 +526,7 @@
 }
 .res-btn {
   padding: .7rem 1.4rem; border-radius: 10px;
-  font-family: 'Outfit', sans-serif; font-size: .88rem; font-weight: 600;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: .88rem; font-weight: 600;
   cursor: pointer; border: 1.5px solid var(--br);
   background: var(--surf); color: var(--ink-2);
   transition: all .14s;
@@ -591,7 +591,7 @@
   animation: spin .8s linear infinite;
 }
 .gen-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--ink);
