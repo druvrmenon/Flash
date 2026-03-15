@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>FlashGen — AI Exam Flashcard Generator</title>
+<meta name="description" content="Turn PDFs and YouTube lectures into AI-powered exam flashcards with spaced repetition, quiz mode, mind maps, and progress tracking. Free with Gemini 2.5 API.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FlashGen">
@@ -12,7 +13,6 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -23,10 +23,11 @@
 <div id="screen-apikey" class="screen active">
   <div class="api-card">
     <div class="logo">FlashGen</div>
-    <h2>Welcome back, scholar</h2>
+    <h2 id="greeting-text">Welcome, scholar</h2>
     <p>Enter your free Gemini 2.5 API key to unlock AI-powered flashcards from any PDF or YouTube lecture.</p>
-    <div><span class="lbl">Gemini API Key</span><input class="inp" type="password" id="api-key-input" placeholder="AIza…" autocomplete="off" spellcheck="false"/></div>
+    <div><label class="lbl" for="api-key-input">Gemini API Key</label><input class="inp" type="password" id="api-key-input" placeholder="AIza…" autocomplete="off" spellcheck="false"/></div>
     <button class="btn-full" id="api-save-btn">Save Key &amp; Start Learning →</button>
+    <button class="btn-full" id="demo-btn" style="background:var(--surf);color:var(--ac);border:1.5px solid var(--br);margin-top:-.4rem">🎮 Try Demo — No Key Needed</button>
     <div class="api-note">🔑 Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank"><strong>aistudio.google.com/apikey</strong></a> → Create API key in new project.<br><br>⚠ <strong>Use AI Studio only</strong> — not Google Cloud Console. Cloud Console keys have no free tier.<br><br>🔒 Stored in your browser only. Sent directly to Google.</div>
   </div>
 </div>
@@ -59,6 +60,9 @@
       <button class="nb" id="btn-rooms">👥 Study Room</button>
       <button class="nb" id="btn-dash">📊 Dashboard</button>
       <button class="nb" id="btn-lib">📚 Library</button>
+      <button class="nb" id="btn-export" title="Export all data">📤 Export</button>
+      <button class="nb" id="btn-import" title="Import data">📥 Import</button>
+      <input type="file" id="import-file-input" accept=".json" style="display:none" />
       <button class="nb" id="btn-key">🔑 Key</button>
     </div>
   </nav>

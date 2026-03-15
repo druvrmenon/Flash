@@ -74,6 +74,9 @@ const setSR=(id,r)=>$.set('fg:sr:'+id,r);
 const getNotes=()=>$.get('fg:notes',[]);
 const setNotes=n=>$.set('fg:notes',n);
 
+// ── HTML ESCAPE ──
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
 // ── THEMES ──
 const THEMES=['aurora','neon','midnight','cyberpunk','dracula','obsidian','deepspace','parchment','sakura','ocean','forest','ember'];
 function applyTheme(t){
@@ -221,7 +224,7 @@ dz.addEventListener('drop',e=>{
 
 function addFiles(newFiles){
   const tooBig=newFiles.filter(f=>f.size>20*1024*1024);
-  if(tooBig.length){showToast(`${tooBig.length} file(s) too large (max 20MB each)','error`);newFiles=newFiles.filter(f=>f.size<=20*1024*1024);}
+  if(tooBig.length){showToast(`${tooBig.length} file(s) too large (max 20MB each)`,'error');newFiles=newFiles.filter(f=>f.size<=20*1024*1024);}
   if(!newFiles.length) return;
   pdfFiles=[...pdfFiles,...newFiles];
   if(pdfFiles.length>1) earnBadge('multi_pdf');
@@ -1031,6 +1034,14 @@ function computeMastery(){
 function buildChart(m){
   const topics=Object.keys(m).filter(t=>m[t].known+m[t].review>0);
   if(!topics.length)return false;
+  if(typeof Chart==='undefined'){
+    // Lazy-load Chart.js
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+    s.onload=()=>buildChart(m);
+    document.head.appendChild(s);
+    return false;
+  }
   const pcts=topics.map(t=>{const d=m[t];return d.known+d.review?Math.round(d.known/(d.known+d.review)*100):0;});
   const st=getComputedStyle(document.documentElement);
   const ink=st.getPropertyValue('--ink').trim(),br=st.getPropertyValue('--br').trim();
@@ -1181,6 +1192,13 @@ function showToast(msg,type='success'){
   checkOnline();
   const ed=$.get('fg:examdate',null);if(ed)document.getElementById('exam-date').value=ed;
   renderCountdown();
+
+  // First-visit detection
+  const hasVisited=$.get('fg:visited',false);
+  const greetEl=document.getElementById('greeting-text');
+  if(greetEl) greetEl.textContent=hasVisited?'Welcome back, scholar':'Welcome, scholar';
+  $.set('fg:visited',true);
+
   if(!getKey()){showScreen('apikey');return;}
   renderLibrary();renderStreakNav();
 
@@ -1206,6 +1224,114 @@ function showToast(msg,type='success'){
     showScreen('upload');
   }
 })();
+
+// ══════════════════════════════════════
+// DEMO MODE (sample deck without API key)
+// ══════════════════════════════════════
+const DEMO_CARDS=[
+  {q:'What is <strong>Coulomb\'s Law</strong>? State the formula.',a:'The force between two point charges is <strong>directly proportional</strong> to the product of charges and <strong>inversely proportional</strong> to the square of distance: <code>F = kq₁q₂/r²</code> where k = 9×10⁹ Nm²/C².',topic:'Electric Charges',type:'formula',priority:'high',chapter:'Ch 1: Electric Charges and Fields'},
+  {q:'Define <strong>electric field intensity</strong> at a point.',a:'Electric field intensity is the <strong>force per unit positive test charge</strong> placed at that point: <code>E = F/q₀</code>. SI unit: N/C or V/m.',topic:'Electric Charges',type:'recall',priority:'high',chapter:'Ch 1: Electric Charges and Fields'},
+  {q:'What is the <strong>principle of superposition</strong> of electric charges?',a:'The net force on a charge equals the <strong>vector sum</strong> of individual forces exerted by all other charges. Forces are calculated independently using Coulomb\'s law, then added vectorially.',topic:'Electric Charges',type:'concept',priority:'medium',chapter:'Ch 1: Electric Charges and Fields'},
+  {q:'Draw and describe the <strong>electric field lines</strong> for a positive point charge.',a:'Field lines <strong>radiate outward</strong> from a positive charge. They are <strong>straight, uniformly spaced</strong> (in 3D), never cross each other, and the density of lines indicates field strength.',topic:'Electric Field Lines',type:'diagram',priority:'medium',chapter:'Ch 1: Electric Charges and Fields'},
+  {q:'State <strong>Gauss\'s Law</strong> and write its mathematical form.',a:'The total electric flux through a closed surface equals <code>1/ε₀</code> times the net charge enclosed: <code>Φ = ∮E·dA = q/ε₀</code>. Used to find E for <strong>symmetric charge distributions</strong>.',topic:'Gauss Law',type:'formula',priority:'high',chapter:'Ch 1: Electric Charges and Fields'},
+  {q:'Define <strong>electric potential</strong> and its SI unit.',a:'Electric potential at a point is the <strong>work done per unit positive charge</strong> in bringing a test charge from infinity to that point: <code>V = W/q₀ = kQ/r</code>. SI unit: <strong>Volt (V)</strong> = J/C.',topic:'Electrostatic Potential',type:'recall',priority:'high',chapter:'Ch 2: Electrostatic Potential and Capacitance'},
+  {q:'A parallel plate capacitor has plate area A and separation d. What happens to capacitance if a dielectric of constant K is inserted?',a:'Capacitance <strong>increases by factor K</strong>: <code>C = Kε₀A/d</code>. The dielectric reduces the effective field between plates, allowing more charge storage at the same voltage.',topic:'Capacitance',type:'application',priority:'high',chapter:'Ch 2: Electrostatic Potential and Capacitance'},
+  {q:'What is the <strong>energy stored</strong> in a charged capacitor?',a:'Energy stored: <code>U = ½CV² = ½QV = Q²/2C</code>. Energy is stored in the <strong>electric field</strong> between the plates. Energy density: <code>u = ½ε₀E²</code>.',topic:'Capacitance',type:'formula',priority:'high',chapter:'Ch 2: Electrostatic Potential and Capacitance'}
+];
+
+document.getElementById('demo-btn').addEventListener('click',()=>{
+  const meta={name:'Demo: CBSE Physics Ch 1–2',count:DEMO_CARDS.length,exam:'CBSE-12',source:'demo',
+    date:new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})};
+  const id='dk_demo';
+  setDeck(id,meta,DEMO_CARDS);
+  // Add to index if not already there
+  const idx=getIdx();
+  if(!idx.find(x=>x.id===id)){
+    idx.unshift({id,name:meta.name,count:meta.count,exam:meta.exam,source:'demo',date:meta.date});
+    setIdx(idx);
+  }
+  curDeckId=id;
+  showScreen('upload');
+  renderLibrary();renderStreakNav();
+  loadViewer(meta,DEMO_CARDS);
+  showToast('🎮 Demo deck loaded! Explore all features — add your API key later to generate your own.','info');
+});
+
+// ══════════════════════════════════════
+// DATA EXPORT / IMPORT
+// ══════════════════════════════════════
+document.getElementById('btn-export').addEventListener('click',()=>{
+  const data={version:1,exportDate:new Date().toISOString(),decks:{},index:getIdx(),
+    streak:$.get('fg:streak',null),badges:getBadges(),coins:getCoins(),
+    notes:getNotes(),theme:$.get('fg:theme','aurora'),
+    timerSessions:$.get('fg:timer_sessions',[]),examDate:$.get('fg:examdate',null)};
+  getIdx().forEach(item=>{
+    const deck=getDeck(item.id);
+    if(deck){
+      data.decks[item.id]={deck,results:getRes(item.id),sr:getSR(item.id)};
+    }
+  });
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='flashgen-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📤 All data exported!','success');
+});
+
+document.getElementById('btn-import').addEventListener('click',()=>{
+  document.getElementById('import-file-input').click();
+});
+
+document.getElementById('import-file-input').addEventListener('change',e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.index||!data.decks){showToast('Invalid backup file','error');return;}
+      if(!confirm(`Import ${data.index.length} decks? This will MERGE with your existing data.`))return;
+      // Merge index
+      const existingIdx=getIdx();
+      const existingIds=new Set(existingIdx.map(x=>x.id));
+      data.index.forEach(item=>{
+        if(!existingIds.has(item.id)){
+          existingIdx.push(item);
+          existingIds.add(item.id);
+        }
+      });
+      setIdx(existingIdx);
+      // Import decks
+      Object.entries(data.decks).forEach(([id,d])=>{
+        if(d.deck) $.set('fg:d:'+id,d.deck);
+        if(d.results) $.set('fg:r:'+id,d.results);
+        if(d.sr) $.set('fg:sr:'+id,d.sr);
+      });
+      // Import other data (merge badges, keep higher coins)
+      if(data.badges){
+        const existing=getBadges();
+        const merged=[...new Set([...existing,...data.badges])];
+        $.set('fg:badges',merged);
+      }
+      if(data.streak) $.set('fg:streak',data.streak);
+      if(data.notes){
+        const existing=getNotes();
+        const merged=[...existing,...data.notes.filter(n=>!existing.find(e=>e.topic===n.topic))];
+        setNotes(merged);
+      }
+      if(data.coins!=null && data.coins>getCoins()) setCoins(data.coins);
+      if(data.examDate) $.set('fg:examdate',data.examDate);
+      renderLibrary();renderStreakNav();renderCountdown();
+      showToast(`✓ Imported ${data.index.length} decks successfully!`,'success');
+    }catch(err){
+      showToast('Error reading backup: '+err.message,'error');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+});
 
 // ══════════════════════════════════════
 // FEATURE 1: AI EXAM PREDICTOR
@@ -1346,8 +1472,6 @@ document.getElementById('adaptive-replace').addEventListener('click',()=>{
 document.getElementById('adaptive-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('adaptive-overlay'))document.getElementById('adaptive-overlay').classList.remove('show');});
 document.getElementById('adaptive-close').addEventListener('click',()=>document.getElementById('adaptive-overlay').classList.remove('show'));
 
-// Trigger adaptive on multiple wrong SR ratings
-const _origRateSR=window.rateSR;
 
 // ══════════════════════════════════════
 // FEATURE 3: WRONG ANSWER EXPLAINER (for quiz)
